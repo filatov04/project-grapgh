@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import * as d3 from "d3";
 import styles from "./GraphPage.module.css";
+import { parseRDFData} from "../../services/rdfParser";
+import { extractGraph } from "../../services/rdfGraphBuilder";
 
 interface RDFNode {
   id: string;
@@ -15,15 +17,6 @@ interface RDFLink {
 const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  const nodes: RDFNode[] = [
-    { id: "S", label: "S" },
-    { id: "S1", label: "S1" },
-    { id: "O", label: "O" },
-  ];
-  const links: RDFLink[] = [
-    { source: "S", target: "S1", predicate: "p name" },
-    { source: "S1", target: "O", predicate: "R" },
-  ];
 
   useEffect(() => {
     const svgEl = svgRef.current;
@@ -32,22 +25,28 @@ const GraphPage: React.FC = () => {
     const width = svgEl.clientWidth;
     const height = svgEl.clientHeight;
 
-    // Собираем иерархию
-    const idMap = new Map(nodes.map((n) => [n.id, n] as [string, RDFNode]));
-    const childrenMap = new Map<string, RDFNode[]>();
-    links.forEach(({ source, target }) => {
-      if (!childrenMap.has(source)) childrenMap.set(source, []);
-      childrenMap.get(source)!.push(idMap.get(target)!);
-    });
-    const rootId = nodes.find((n) => !links.some((l) => l.target === n.id))!.id;
-    const root = d3.hierarchy<RDFNode>(
-      idMap.get(rootId)!,
-      (d) => childrenMap.get(d.id) || []
-    );
+    const fetchAndRender = async () => {
+      const url = window.location.origin + '/example.ttl';
+      try {
+        const response = await fetch(url);
+        const rdfText = await response.text();
+        const store = parseRDFData(rdfText, url);
+        const { nodes, links } = extractGraph(store);
+        const idMap = new Map(nodes.map((n) => [n.id, n] as [string, RDFNode]));
+        const childrenMap = new Map<string, RDFNode[]>();
+        links.forEach(({ source, target }) => {
+          if (!childrenMap.has(source)) childrenMap.set(source, []);
+          childrenMap.get(source)!.push(idMap.get(target)!);
+        
+        const rootId = nodes.find((n) => !links.some((l) => l.target === n.id))!.id;
+        const root = d3.hierarchy<RDFNode>(
+          idMap.get(rootId)!,
+          (d) => childrenMap.get(d.id) || []
+      );
+
     const tree = d3.tree<RDFNode>().size([height - 40, width - 40]);
     tree(root);
-
-    // Центрируем граф
+            // Центрируем граф
     const xs = root.descendants().map((d) => d.x!);
     const ys = root.descendants().map((d) => d.y!);
     const xMin = d3.min(xs)!,
@@ -95,6 +94,17 @@ const GraphPage: React.FC = () => {
       .attr("dy", 4)
       .attr("text-anchor", "middle")
       .text((d) => d.data.label);
+
+    });
+      } catch (error) {
+        console.error("Error fetching or parsing RDF data:", error);
+      }
+
+    }
+    // Собираем иерархию
+    
+
+    fetchAndRender();
 
     // Cleanup
     return () => {

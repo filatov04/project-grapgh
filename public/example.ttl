@@ -1,0 +1,28 @@
+@prefix ex: <http://example.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+
+# 🟢 Полезные узлы
+ex:Person a rdfs:Class ;
+    rdfs:label "Person" ;
+    rdfs:comment "A person class" .
+
+ex:Document a rdfs:Class ;
+    rdfs:label "Document" .
+
+ex:author a rdf:Property ;
+    rdfs:domain ex:Document ;
+    rdfs:range ex:Person ;
+    rdfs:label "Author" .
+
+ex:doc1 a ex:Document ;
+    ex:author ex:alice .
+
+ex:alice a ex:Person ;
+    rdfs:label "Alice" .
+
+# 🔴 Мусор
+ex:doc1 dc:title "A sample document" ;
+        dc:date "2023-12-01" ;
+        rdfs:comment "This is just an example" .
