@@ -26,7 +26,8 @@ const GraphPage: React.FC = () => {
 
   // 3. Добавляем состояния для загрузки и ошибок
   const [nodes, setNodes] = useState<RenderNode[]>([]);
-  const [links, setLinks] = useState<RenderLink[]>([]);
+  const [originalLinks, setOriginalLinks] = useState<RDFLink[]>([]);
+  // const [links, setLinks] = useState<RenderLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +44,7 @@ const GraphPage: React.FC = () => {
         }
         const rdfText = await response.text();
         const { nodes: flatNodes, links: flatLinks } = parseRDFData(rdfText, url);
+        setOriginalLinks(flatLinks);
 
         // --- Логика построения иерархии ---
         const idMap = new Map(flatNodes.map((n) => [n.id, n]));
@@ -68,7 +70,7 @@ const GraphPage: React.FC = () => {
 
         // 5. Сохраняем рассчитанные данные в состояние React
         setNodes(treeRoot.descendants());
-        setLinks(treeRoot.links());
+        // setLinks(treeRoot.links());
         
       } catch (err: any) {
         setError(err.message || "An unknown error occurred");
@@ -80,10 +82,15 @@ const GraphPage: React.FC = () => {
     fetchData();
   }, []); // Пустой массив зависимостей, чтобы эффект выполнился один раз
 
+  const nodeMap = useMemo(() => 
+    new Map(nodes.map(node => [node.data.id, node])), 
+    [nodes] // Пересчитываем карту только когда меняется массив узлов
+  );
+
   // 6. D3 используется только для генерации атрибутов, а не для создания элементов
   const linkPathGenerator = useMemo(() => 
-    d3.linkHorizontal<RenderLink, RenderNode>()
-      .x(d => d.y) // Оси намеренно поменяны местами для горизонтального дерева
+    d3.linkHorizontal<any, d3.HierarchyPointNode<RDFNode>>()
+      .x(d => d.y)
       .y(d => d.x),
   []);
 
@@ -98,9 +105,8 @@ const GraphPage: React.FC = () => {
 
   return (
     <div className={styles["graph-page"]}>
-      {/* ... ваша шапка ... */}
+      {/* ... шапка ... */}
       <div className={styles["graph-page__content"]}>
-        {/* 8. Рендеринг SVG происходит декларативно через JSX */}
         <svg
           ref={svgRef}
           width={GRAPH_CONFIG.width}
@@ -108,17 +114,45 @@ const GraphPage: React.FC = () => {
           className={styles["graph-page__svg"]}
         >
           <g transform={`translate(${GRAPH_CONFIG.margin.left}, ${GRAPH_CONFIG.margin.top})`}>
-            {/* Рендер связей */}
-            {links.map((link, i) => (
-              <path
-                key={i}
-                className={styles.link}
-                d={linkPathGenerator(link)!}
-                fill="none"
-                stroke={GRAPH_CONFIG.colors.link}
-              />
-            ))}
-            {/* Рендер узлов */}
+            
+            {/* --- ОБНОВЛЕННЫЙ РЕНДЕР СВЯЗЕЙ И ПРЕДИКАТОВ --- */}
+            {originalLinks.map((link, i) => {
+              const sourceNode = nodeMap.get(link.source);
+              const targetNode = nodeMap.get(link.target);
+
+              // Если какой-то из узлов не найден (на всякий случай), не рендерим связь
+              if (!sourceNode || !targetNode) {
+                return null;
+              }
+              
+              // Рассчитываем среднюю точку для текста предиката
+              const midX = (sourceNode.y + targetNode.y) / 2;
+              const midY = (sourceNode.x + targetNode.x) / 2;
+
+              return (
+                // Группируем путь и текст, чтобы они были вместе
+                <g key={i} className={styles.linkGroup}>
+                  <path
+                    className={styles.link}
+                    d={linkPathGenerator({ source: sourceNode, target: targetNode })!}
+                    fill="none"
+                    stroke={GRAPH_CONFIG.colors.link}
+                  />
+                  <text
+                    x={midX}
+                    y={midY}
+                    dy="-5px" // Смещаем текст немного над линией
+                    textAnchor="middle" // Центрируем текст по горизонтали
+                    fill="#555"
+                    fontSize="12px"
+                  >
+                    {link.predicate}
+                  </text>
+                </g>
+              );
+            })}
+            
+            {/* Рендер узлов (остается без изменений) */}
             {nodes.map((node, i) => (
               <g key={i} className={styles.node} transform={`translate(${node.y}, ${node.x})`}>
                 <circle r={GRAPH_CONFIG.nodeRadius} fill={GRAPH_CONFIG.colors.node} />
