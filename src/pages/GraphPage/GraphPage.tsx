@@ -4,7 +4,6 @@ import styles from "./GraphPage.module.css";
 import { parseRDFData } from "../../services/rdfParser";
 import type { RDFLink, RDFNode } from "../../shared/types/graphTypes";
 
-// 1. Выносим "магические числа" и настройки в константы
 const GRAPH_CONFIG = {
   width: 900,
   height: 600,
@@ -17,22 +16,28 @@ const GRAPH_CONFIG = {
   margin: { top: 20, right: 120, bottom: 20, left: 120 },
 };
 
-// 2. Определяем типы для данных, которые пойдут в рендер
 interface RenderNode extends d3.HierarchyPointNode<RDFNode> {}
 interface RenderLink extends d3.HierarchyPointLink<RDFNode> {}
+interface SimulationNode extends RDFNode, d3.SimulationNodeDatum {}
 
 const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  // 3. Добавляем состояния для загрузки и ошибок
   const [nodes, setNodes] = useState<RenderNode[]>([]);
   const [originalLinks, setOriginalLinks] = useState<RDFLink[]>([]);
-  // const [links, setLinks] = useState<RenderLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 4. Логику получения данных выносим в отдельную функцию
+    
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+
+    const svg = d3.select(svgEl);
+    svg.selectAll("*").remove();
+
+    const width = svgEl.clientWidth;
+    const height = svgEl.clientHeight;
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
@@ -43,34 +48,83 @@ const GraphPage: React.FC = () => {
           throw new Error(`Failed to fetch: ${response.statusText}`);
         }
         const rdfText = await response.text();
-        const { nodes: flatNodes, links: flatLinks } = parseRDFData(rdfText, url);
-        setOriginalLinks(flatLinks);
+        const { nodes, links } = parseRDFData(rdfText, url);
+        setOriginalLinks(links);
 
-        // --- Логика построения иерархии ---
-        const idMap = new Map(flatNodes.map((n) => [n.id, n]));
-        const childrenMap = new Map<string, RDFNode[]>();
-        flatLinks.forEach(({ source, target }) => {
-          if (!childrenMap.has(source)) childrenMap.set(source, []);
-          const targetNode = idMap.get(target);
-          if (targetNode) childrenMap.get(source)!.push(targetNode);
+        const simulation = d3.forceSimulation(nodes as SimulationNode[])
+          .force("link", d3.forceLink(links).id((d: any) => d.id).distance(100))
+          .force("charge", d3.forceManyBody().strength(-150))
+          .force("center", d3.forceCenter(width / 2, height / 2));
+        
+        const link = svg.append("g")
+            .attr("stroke", "#999")
+            .attr("stroke-opacity", 0.6)
+          .selectAll("line")
+          .data(links)
+          .join("line")
+            .attr("stroke-width", 1.5);
+
+        const linkText = svg.append("g")
+            .selectAll("text")
+            .data(links)
+            .join("text")
+            .attr("font-size", "10px")
+            .attr("fill", "#555")
+            .text(d => d.predicate);
+
+        const node = svg.append("g")
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 1.5)
+          .selectAll("g")
+          .data(nodes)
+          .join("g");
+
+        node.append("circle")
+            .attr("r", 20)
+            .attr("fill", "#1f77b4");
+
+        node.append("text")
+            .attr("text-anchor", "middle")
+            .attr("dy", "0.3em")
+            .attr("fill", "white")
+            .text(d => d.label);
+            
+        // Добавляем возможность перетаскивания узлов
+        node.call(d3.drag<any, any>()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended));
+
+        simulation.on("tick", () => {
+          link
+              .attr("x1", d => (d.source as any).x)
+              .attr("y1", d => (d.source as any).y)
+              .attr("x2", d => (d.target as any).x)
+              .attr("y2", d => (d.target as any).y);
+
+          linkText
+              .attr("x", d => ((d.source as any).x + (d.target as any).x) / 2)
+              .attr("y", d => ((d.source as any).y + (d.target as any).y) / 2);
+
+          node
+              .attr("transform", d => `translate(${d.x}, ${d.y})`);
         });
 
-        const rootNode = flatNodes.find((n) => !flatLinks.some((l) => l.target === n.id));
-        if (!rootNode) throw new Error("Root node not found in the graph.");
-        
-        const root = d3.hierarchy<RDFNode>(rootNode, (d) => childrenMap.get(d.id));
-        
-        // --- Расчет макета дерева ---
-        const treeLayout = d3.tree<RDFNode>().size([
-            GRAPH_CONFIG.height - GRAPH_CONFIG.margin.top - GRAPH_CONFIG.margin.bottom,
-            GRAPH_CONFIG.width - GRAPH_CONFIG.margin.left - GRAPH_CONFIG.margin.right,
-        ]);
-        
-        const treeRoot = treeLayout(root);
-
-        // 5. Сохраняем рассчитанные данные в состояние React
-        setNodes(treeRoot.descendants());
-        // setLinks(treeRoot.links());
+        // Функции для перетаскивания
+        function dragstarted(event: any, d: any) {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        }
+        function dragged(event: any, d: any) {
+          d.fx = event.x;
+          d.fy = event.y;
+        }
+        function dragended(event: any, d: any) {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }
         
       } catch (err: any) {
         setError(err.message || "An unknown error occurred");
@@ -80,21 +134,19 @@ const GraphPage: React.FC = () => {
     };
 
     fetchData();
-  }, []); // Пустой массив зависимостей, чтобы эффект выполнился один раз
+  }, []);
 
   const nodeMap = useMemo(() => 
     new Map(nodes.map(node => [node.data.id, node])), 
-    [nodes] // Пересчитываем карту только когда меняется массив узлов
+    [nodes] 
   );
 
-  // 6. D3 используется только для генерации атрибутов, а не для создания элементов
   const linkPathGenerator = useMemo(() => 
     d3.linkHorizontal<any, d3.HierarchyPointNode<RDFNode>>()
       .x(d => d.y)
       .y(d => d.x),
   []);
 
-  // 7. Рендерим UI в зависимости от состояния
   if (isLoading) {
     return <div>Loading graph...</div>;
   }
@@ -105,7 +157,6 @@ const GraphPage: React.FC = () => {
 
   return (
     <div className={styles["graph-page"]}>
-      {/* ... шапка ... */}
       <div className={styles["graph-page__content"]}>
         <svg
           ref={svgRef}
@@ -115,22 +166,17 @@ const GraphPage: React.FC = () => {
         >
           <g transform={`translate(${GRAPH_CONFIG.margin.left}, ${GRAPH_CONFIG.margin.top})`}>
             
-            {/* --- ОБНОВЛЕННЫЙ РЕНДЕР СВЯЗЕЙ И ПРЕДИКАТОВ --- */}
             {originalLinks.map((link, i) => {
               const sourceNode = nodeMap.get(link.source);
               const targetNode = nodeMap.get(link.target);
-
-              // Если какой-то из узлов не найден (на всякий случай), не рендерим связь
               if (!sourceNode || !targetNode) {
                 return null;
               }
               
-              // Рассчитываем среднюю точку для текста предиката
               const midX = (sourceNode.y + targetNode.y) / 2;
               const midY = (sourceNode.x + targetNode.x) / 2;
 
               return (
-                // Группируем путь и текст, чтобы они были вместе
                 <g key={i} className={styles.linkGroup}>
                   <path
                     className={styles.link}
@@ -141,8 +187,8 @@ const GraphPage: React.FC = () => {
                   <text
                     x={midX}
                     y={midY}
-                    dy="-5px" // Смещаем текст немного над линией
-                    textAnchor="middle" // Центрируем текст по горизонтали
+                    dy="-5px"
+                    textAnchor="middle" 
                     fill="#555"
                     fontSize="12px"
                   >
@@ -152,7 +198,6 @@ const GraphPage: React.FC = () => {
               );
             })}
             
-            {/* Рендер узлов (остается без изменений) */}
             {nodes.map((node, i) => (
               <g key={i} className={styles.node} transform={`translate(${node.y}, ${node.x})`}>
                 <circle r={GRAPH_CONFIG.nodeRadius} fill={GRAPH_CONFIG.colors.node} />
