@@ -1,106 +1,120 @@
 import React, { useEffect, useRef } from "react";
 import * as d3 from "d3";
 import styles from "./GraphPage.module.css";
-
-interface RDFNode {
-  id: string;
-  label: string;
-}
-interface RDFLink {
-  source: string;
-  target: string;
-  predicate: string;
-}
+import { parseRDFData} from "../../services/rdfParser";
+import type { RDFLink, RDFNode } from "../../shared/types/graphTypes";
 
 const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const gRef = useRef<SVGGElement | null>(null);
 
-  const nodes: RDFNode[] = [
-    { id: "S", label: "S" },
-    { id: "S1", label: "S1" },
-    { id: "O", label: "O" },
-  ];
-  const links: RDFLink[] = [
-    { source: "S", target: "S1", predicate: "p name" },
-    { source: "S1", target: "O", predicate: "R" },
-  ];
+useEffect(() => {
+  const fetchAndRender = async () => {
+    const url = window.location.origin + '/example.ttl';
+    try {
+      const response = await fetch(url);
+      const rdfText = await response.text();
+      const { nodes, links } = parseRDFData(rdfText, url);
+      renderTree(nodes, links);
+    } catch (error) {
+      console.error("Error fetching or parsing RDF data:", error);
+    }
+  };
 
-  useEffect(() => {
+  const renderTree = (nodes: RDFNode[], links: RDFLink[]) => {
     const svgEl = svgRef.current;
     if (!svgEl) return;
+
     const svg = d3.select(svgEl);
+    svg.selectAll("*").remove();
+
+    const g = svg.append('g');
+    gRef.current = g.node();
+
+    const rootNodes = nodes.filter(node => node.depth === 0);
+    const root = d3.hierarchy({
+      id: "virtual_root",
+      label: "Root",
+      type: "class",
+      children: rootNodes,
+      depth: -1
+    } as RDFNode);
+
     const width = svgEl.clientWidth;
-    const height = svgEl.clientHeight;
 
-    // Собираем иерархию
-    const idMap = new Map(nodes.map((n) => [n.id, n] as [string, RDFNode]));
-    const childrenMap = new Map<string, RDFNode[]>();
-    links.forEach(({ source, target }) => {
-      if (!childrenMap.has(source)) childrenMap.set(source, []);
-      childrenMap.get(source)!.push(idMap.get(target)!);
-    });
-    const rootId = nodes.find((n) => !links.some((l) => l.target === n.id))!.id;
-    const root = d3.hierarchy<RDFNode>(
-      idMap.get(rootId)!,
-      (d) => childrenMap.get(d.id) || []
-    );
-    const tree = d3.tree<RDFNode>().size([height - 40, width - 40]);
-    tree(root);
+    const nodeSize = 120; 
+    const treeLayout = d3.tree<RDFNode>()
+      .nodeSize([nodeSize * 1.5, nodeSize]) 
+      .separation((a, b) => {
+        return a.parent === b.parent ? 1.5 : 1;
+      });
 
-    // Центрируем граф
-    const xs = root.descendants().map((d) => d.x!);
-    const ys = root.descendants().map((d) => d.y!);
-    const xMin = d3.min(xs)!,
-      xMax = d3.max(xs)!;
-    const yMin = d3.min(ys)!,
-      yMax = d3.max(ys)!;
-    const xOffset = (height - (xMax - xMin)) / 2 - xMin;
-    const yOffset = (width - (yMax - yMin)) / 2 - yMin;
+    treeLayout(root);
 
-    const g = svg
-      .append("g")
-      .attr("transform", `translate(${yOffset},${xOffset})`);
 
-    // Генератор путей для связей с корректной типизацией
-    const linkGenerator = d3
-      .linkHorizontal<
-        d3.HierarchyPointLink<RDFNode>,
-        d3.HierarchyPointNode<RDFNode>
-      >()
-      .x((d) => d.y!)
-      .y((d) => d.x!);
-
-    // Рендер связей
-    g.selectAll("path.link")
+    g.selectAll(".link")
       .data(root.links())
       .enter()
       .append("path")
-      .classed("link", true)
-      .attr("d", linkGenerator)
-      .attr("stroke", "#666")
-      .attr("fill", "none");
+      .attr("class", styles.link)
+      .attr("d", d3.linkVertical()
+        .x(d => d.x!)
+        .y(d => d.y!))
+      .attr("stroke-width", 1.5);
 
-    // Рендер узлов
-    const nodeG = g
-      .selectAll("g.node")
-      .data(root.descendants())
+    const nodeGroups = g.selectAll(".node")
+      .data(root.descendants().filter(d => d.data.id !== "virtual_root"))
       .enter()
       .append("g")
-      .classed("node", true)
-      .attr("transform", (d) => `translate(${d.y!},${d.x!})`);
+      .attr("class", `${styles.node} ${(d: any) => styles[d.data.type]}`)
+      .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
 
-    nodeG.append("circle").attr("r", 20).attr("fill", "#1f77b4");
-    nodeG
-      .append("text")
-      .attr("dy", 4)
-      .attr("text-anchor", "middle")
-      .text((d) => d.data.label);
+    nodeGroups.append("circle")
+      .attr("r", 15) 
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 2);
 
-    // Cleanup
-    return () => {
-      svg.selectAll("*").remove();
-    };
-  }, []);
+    nodeGroups.append("text")
+      .attr("dy", ".31em")
+      .attr("x", (d: any) => d.children ? -20 : 20) 
+      .style("text-anchor", (d: any) => d.children ? "end" : "start")
+      .style("fill", "#333")
+      .style("font-size", "14px") 
+      .style("font-family", "sans-serif")
+      .style("pointer-events", "none")
+      .text((d: any) => {
+        const maxLength = 20;
+        return d.data.label.length > maxLength 
+          ? d.data.label.substring(0, maxLength) + '...' 
+          : d.data.label;
+      });
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.3, 3]) 
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+
+    svg.call(zoom as any)
+      .call(zoom.transform, d3.zoomIdentity.translate(width/2, 60).scale(0.8)); 
+
+    const simulation = d3.forceSimulation(root.descendants() as any)
+      .force("x", d3.forceX().x(d => (d as any).x).strength(0.5))
+      .force("y", d3.forceY().y(d => (d as any).y).strength(0.5))
+      .force("collide", d3.forceCollide().radius(30)) 
+      .stop();
+
+    for (let i = 0; i < 100; i++) simulation.tick();
+  };
+
+  fetchAndRender();
+  
+  return () => {
+    if (svgRef.current) {
+      d3.select(svgRef.current).selectAll("*").remove();
+    }
+  };
+}, []);
 
   return (
     <div className={styles["graph-page"]}>
