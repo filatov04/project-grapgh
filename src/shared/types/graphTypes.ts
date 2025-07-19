@@ -3,7 +3,7 @@ interface RDFNode {
   label: string;
   type: 'class' | 'property';
   children: RDFNode[];
-  depth: number;
+  //depth: number;
 }
 
 interface RDFLink {

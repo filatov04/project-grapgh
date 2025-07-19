@@ -1,59 +1,77 @@
+:root {
+  --font-primary: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-size-base: 14px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+}
+
 .graph-page {
   display: flex;
   flex-direction: column;
   height: 100vh;
   background-color: #ffffff;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
 }
 
 .graph-page__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: 16px 24px;
   border-bottom: 1px solid #e0e0e0;
   background-color: #fafafa;
 }
 
 .graph-page__tabs {
   display: flex;
+  gap: 8px;
 }
 
 .graph-page__tab {
   padding: 8px 16px;
-  margin-right: 8px;
   border: none;
   background: none;
-  font-size: 16px;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
+  color: #555;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
 .graph-page__tab[aria-selected="true"] {
-  border-bottom: 2px solid #007aff;
-  font-weight: bold;
+ color: #007aff;
+  background-color: rgba(0, 122, 255, 0.1);
+  font-weight: var(--font-weight-bold);
 }
 
 .graph-page__login {
   padding: 8px 16px;
-  font-size: 14px;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   background-color: #007aff;
   color: #ffffff;
   border: none;
   border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .graph-page__content {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   padding: 16px;
-  margin-top: 20px;
 }
 
 .graph-page__svg {
   width: 100%;
   height: 100%;
-  border: 1px solid #eee;
   background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Стили для узлов и связей */
@@ -64,22 +82,187 @@
 }
 
 .node circle {
-
   stroke-width: 2px;
   stroke: #fff;
 }
 
 .node.class circle {
-  fill: #1f77b4; /* Синий для классов */
+  fill: #1f77b4;
 }
 
 .node.property circle {
-  fill: #ff7f0e; /* Оранжевый для свойств */
+  fill: #ff7f0e;
 }
 
 .node text {
   font-size: 12px;
-  fill: #ffffff;
-  pointer-events: none;
+  font-weight: var(--font-weight-medium);
+  fill: #333;
 }
 
+.linkLabel {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  fill: #666;
+}
+
+/* Стили модального окна */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background: white;
+  font-family: var(--font-primary);
+  border-radius: 12px;
+  width: 80%;
+  max-width: 500px;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modalHeader {
+  padding: 16px 20px;
+  background: #4CAF50;
+  color: white;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+}
+
+.modalHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  font-weight: var(--font-weight-bold);
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.predicatesList {
+  padding: 15px;
+}
+
+.predicateItem {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px 15px;
+  margin-bottom: 10px;
+  border: 1px solid #e0e0e0;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.predicateItem:last-child {
+  margin-bottom: 0;
+}
+
+.predicateItem:hover {
+  background: #f1f1f1;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.predicateText {
+  color: #333;
+  word-break: break-word;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.4;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+}
+
+.addPredicateButtonContainer {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0;
+}
+
+.addPredicateButton {
+  background-color: #4CAF50;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 32px;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.addPredicateButtonText {
+  color: white;
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.addPredicateButton:hover {
+  background-color: #3e8e41;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+}
+
+.addPredicateButton:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.predicateForm {
+  display: flex;
+  gap: 10px;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.predicateInput {
+  flex: 1;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-base);
+  transition: border-color 0.2s;
+}
+
+.predicateInput:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.error {
+  color: #f44336;
+  font-size: 14px;
+  margin-top: 8px;
+}
