@@ -2,7 +2,7 @@ import App from "./app/App.tsx";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import GraphPage from "./pages/GraphPage/GraphPage.tsx";
-import MarkupEditor from "./pages/MarkupPage/MarkupEditor.tsx";
+import { CommentableText } from "./pages/MarkupPage/MarkupEditor.tsx";
 
 const root = document.getElementById("root")!;
 
@@ -11,7 +11,7 @@ createRoot(root).render(
     <Routes>
       <Route path="/" element={<App />}>
         <Route index element={<GraphPage />} />
-        <Route path="markup" element={<MarkupEditor />} />
+        <Route path="markup" element={<CommentableText initialText="Hello, world!" />} />
       </Route>
     </Routes>
   </BrowserRouter>
