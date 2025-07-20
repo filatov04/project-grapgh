@@ -1,12 +1,15 @@
 import React, { useState, useMemo, useRef } from 'react';
 import type { FC, ChangeEvent, MouseEvent } from 'react';
-import './MarkupEditor.css';
+import './CommentableText.css';
+
+type TripletType = 'S' | 'O' | 'R' | null;
 
 interface Comment {
   id: number;
   text: string;
   startIndex: number;
   endIndex: number;
+  tripletType: TripletType;
 }
 
 interface SelectionData {
@@ -22,17 +25,23 @@ interface HoveredCommentData {
 
 interface CommentInputPopupProps {
   position: { x: number; y: number };
-  onSave: (commentText: string) => void;
+  onSave: (commentText: string, tripletType: TripletType) => void;
   onCancel: () => void;
 }
 
 const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCancel }) => {
   const [commentText, setCommentText] = useState<string>('');
+  const [tripletType, setTripletType] = useState<TripletType>(null);
 
   const handleSave = () => {
-    if (commentText.trim()) {
-      onSave(commentText);
+    // Разрешаем сохранение если есть текст комментария ИЛИ выбран тип триплета
+    if (commentText.trim() || tripletType) {
+      onSave(commentText, tripletType);
     }
+  };
+
+  const handleTripletTypeClick = (type: TripletType) => {
+    setTripletType(type);
   };
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -41,8 +50,31 @@ const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCan
 
   return (
     <div className="comment-popup" style={{ top: position.y, left: position.x }}>
+      <div className="triplet-buttons">
+        <button 
+          className={`triplet-btn ${tripletType === 'S' ? 'active' : ''}`}
+          data-type="S"
+          onClick={() => handleTripletTypeClick('S')}
+        >
+          S
+        </button>
+        <button 
+          className={`triplet-btn ${tripletType === 'O' ? 'active' : ''}`}
+          data-type="O"
+          onClick={() => handleTripletTypeClick('O')}
+        >
+          O
+        </button>
+        <button 
+          className={`triplet-btn ${tripletType === 'R' ? 'active' : ''}`}
+          data-type="R"
+          onClick={() => handleTripletTypeClick('R')}
+        >
+          R
+        </button>
+      </div>
       <textarea
-        placeholder="Ваш комментарий..."
+        placeholder="Ваш комментарий (необязательно)..."
         value={commentText}
         onChange={handleChange}
         autoFocus
@@ -64,7 +96,16 @@ interface CommentTooltipProps {
 const CommentTooltip: FC<CommentTooltipProps> = ({ comment, position }) => {
   return (
     <div className="comment-tooltip" style={{ top: position.y, left: position.x }}>
-      {comment.text}
+      {comment.tripletType && (
+        <div className={`triplet-type-badge triplet-badge-${comment.tripletType.toLowerCase()}`}>
+          {comment.tripletType}
+        </div>
+      )}
+      {comment.text.trim() && (
+        <div className="comment-text">
+          {comment.text}
+        </div>
+      )}
     </div>
   );
 };
@@ -123,14 +164,15 @@ const CommentableText: FC<CommentableTextProps> = ({ initialText }) => {
     });
   };
 
-  const handleSaveComment = (commentText: string): void => {
+  const handleSaveComment = (commentText: string, tripletType: TripletType): void => {
     if (!selection) return;
 
     const newComment: Comment = {
       id: Date.now(),
-      text: commentText,
+      text: commentText || '', // Если текст пустой, используем пустую строку
       startIndex: selection.startIndex,
       endIndex: selection.endIndex,
+      tripletType,
     };
     
     setComments(prevComments => 
@@ -142,10 +184,13 @@ const CommentableText: FC<CommentableTextProps> = ({ initialText }) => {
   };
 
   const handleHighlightMouseEnter = (event: MouseEvent<HTMLSpanElement>, comment: Comment): void => {
-    setHoveredComment({
-      comment,
-      rect: event.currentTarget.getBoundingClientRect(),
-    });
+    // Показываем тултип только если есть текст комментария или тип триплета
+    if (comment.text.trim() || comment.tripletType) {
+      setHoveredComment({
+        comment,
+        rect: event.currentTarget.getBoundingClientRect(),
+      });
+    }
   };
 
   const handleHighlightMouseLeave = (): void => {
@@ -166,16 +211,16 @@ const CommentableText: FC<CommentableTextProps> = ({ initialText }) => {
           <span key={`text-${lastIndex}`}>{initialText.substring(lastIndex, comment.startIndex)}</span>
         );
       }
-      segments.push(
-        <span
-          key={comment.id}
-          className="highlighted-text"
-          onMouseEnter={(e) => handleHighlightMouseEnter(e, comment)}
-          onMouseLeave={handleHighlightMouseLeave}
-        >
-          {initialText.substring(comment.startIndex, comment.endIndex)}
-        </span>
-      );
+             segments.push(
+         <span
+           key={comment.id}
+           className={`highlighted-text ${comment.tripletType ? `triplet-${comment.tripletType.toLowerCase()}` : ''}`}
+           onMouseEnter={(e) => handleHighlightMouseEnter(e, comment)}
+           onMouseLeave={handleHighlightMouseLeave}
+         >
+           {initialText.substring(comment.startIndex, comment.endIndex)}
+         </span>
+       );
       lastIndex = comment.endIndex;
     });
 

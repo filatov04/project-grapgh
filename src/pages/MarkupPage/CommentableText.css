@@ -19,7 +19,7 @@
 }
 
 .highlighted-text {
-  background-color: #fff59d; /* Желтая подсветка */
+  background-color: #fff59d; /* Желтая подсветка по умолчанию */
   cursor: pointer;
   border-radius: 3px;
   transition: background-color 0.2s ease-in-out;
@@ -27,6 +27,31 @@
 
 .highlighted-text:hover {
   background-color: #fbc02d; /* Более темная подсветка при наведении */
+}
+
+/* Цвета для разных типов триплета */
+.highlighted-text.triplet-s {
+  background-color: #ffcdd2; /* Красный для Subject */
+}
+
+.highlighted-text.triplet-s:hover {
+  background-color: #ef9a9a;
+}
+
+.highlighted-text.triplet-o {
+  background-color: #c8e6c9; /* Зеленый для Object */
+}
+
+.highlighted-text.triplet-o:hover {
+  background-color: #a5d6a7;
+}
+
+.highlighted-text.triplet-r {
+  background-color: #bbdefb; /* Синий для Relation */
+}
+
+.highlighted-text.triplet-r:hover {
+  background-color: #90caf9;
 }
 
 .comment-popup, .comment-tooltip {
@@ -38,6 +63,51 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 12px;
   min-width: 250px;
+}
+
+.triplet-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.triplet-btn {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+  color: #666;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.triplet-btn:hover {
+  border-color: #007bff;
+  color: #007bff;
+}
+
+.triplet-btn.active {
+  border-color: #007bff;
+  background-color: #007bff;
+  color: white;
+}
+
+.triplet-btn.active[data-type="S"] {
+  border-color: #dc3545;
+  background-color: #dc3545;
+}
+
+.triplet-btn.active[data-type="O"] {
+  border-color: #28a745;
+  background-color: #28a745;
+}
+
+.triplet-btn.active[data-type="R"] {
+  border-color: #007bff;
+  background-color: #007bff;
 }
 
 .comment-popup textarea {
@@ -80,4 +150,31 @@
   background-color: #333;
   color: white;
   border-radius: 6px;
+}
+
+.triplet-type-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  min-width: 20px;
+}
+
+.triplet-badge-s {
+  background-color: #dc3545;
+}
+
+.triplet-badge-o {
+  background-color: #28a745;
+}
+
+.triplet-badge-r {
+  background-color: #007bff;
+}
+
+.comment-text {
+  margin-top: 4px;
 }

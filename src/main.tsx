@@ -11,7 +11,7 @@ createRoot(root).render(
     <Routes>
       <Route path="/" element={<App />}>
         <Route index element={<GraphPage />} />
-        <Route path="markup" element={<CommentableText initialText="Hello, world!" />} />
+        <Route path="markup" element={<CommentableText initialText="Москва является столицей России. В Москве находится Кремль. Россия - это большая страна." />} />
       </Route>
     </Routes>
   </BrowserRouter>
