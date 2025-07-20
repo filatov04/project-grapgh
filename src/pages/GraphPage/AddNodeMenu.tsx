@@ -8,7 +8,7 @@ interface AddNoteMenuProps {
 }
 
 
-export const AddNoteMenu: React.FC<AddNoteMenuProps> = ({ onClose, node, onAddnode }) => {
+export const AddNoteMenu: React.FC<AddNoteMenuProps> = ({ onClose, node, onAddnod   }) => {
     return (
         <div className = {styles.nodeModalOverlay} onClick = {onClose}>
 

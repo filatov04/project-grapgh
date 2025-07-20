@@ -25,6 +25,12 @@ class OntologyManager {
     return OntologyManager.instance;
   }
 
+    public clear(): void {
+    this.nodes.clear();
+    this.links.clear();
+    PredicateManager.clear(); // Если нужно очистить и предикаты
+  }
+
   public addNode(node: OntologyNode): OntologyNode {
     if (!this.nodes.has(node.id)) {
       this.nodes.set(node.id, node);
@@ -41,9 +47,17 @@ class OntologyManager {
     return false;
   }
 
+  public getAllLinks(): RDFLink[] {
+    return Array.from(this.links);
+  }
+
   public getNode(nodeId: string): OntologyNode | undefined {
     return this.nodes.get(nodeId);
   }
+
+  public getNodeByLabel(label: string): OntologyNode | undefined {
+  return Array.from(this.nodes.values()).find(node => node.label === label);
+}
 
   public getAllNodes(): OntologyNode[] {
     return Array.from(this.nodes.values());
@@ -56,7 +70,6 @@ class OntologyManager {
   public getConnectableNodes(): OntologyNode[] {
     return this.getAllNodes().filter(node => node.type !== 'property');
   }
-
 
   public generateNodeId(label: string): string {
     const baseId = label.replace(/\s+/g, '_');

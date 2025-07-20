@@ -18,6 +18,10 @@ class PredicateManager {
         return PredicateManager.instance;
     }
 
+    public clear(): void {
+    this.predicates.clear();
+    
+  }
     public registerPredicate(predicate: string): void {
         if (!this.systemPredicates.has(predicate)) {
             this.predicates.add(predicate);

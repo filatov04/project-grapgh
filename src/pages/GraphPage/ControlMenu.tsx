@@ -41,7 +41,7 @@ export const ControlMenu: React.FC<ControlMenuProps> = ({ onClose, predicates, o
             x
           </button>
         </div>
-        
+ 
         <div className={styles.predicatesList}>
           {predicates.map((predicate, index) => (
             <div key={index} className={styles.predicateItem}>
