@@ -656,23 +656,12 @@ const GraphPage: React.FC = () => {
 
   return (
     <div className={styles["graph-page"]}>
-      <header className={styles["graph-page__header"]}>
-        <nav className={styles["graph-page__tabs"]}>
-          <button className={styles["graph-page__tab"]} aria-selected="true">
-            Граф
-          </button>
-          <button className={styles["graph-page__tab"]}>Разметка</button>
-        </nav>
-        <button className={styles["graph-page__login"]}>
-          Регистрация / Логин
-        </button>
-      </header>
       <div className={styles["graph-page__content"]}>
         <svg
           ref={svgRef}
           className={styles["graph-page__svg"]}
           width="100%"
-          height="600px"
+          height="100%"
         />
       </div>
       {showMenu && (
