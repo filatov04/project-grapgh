@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import styles from './GraphPage.module.css';
+import OntologyManager from '../../shared/types/OntologyManager';
+import type { OntologyNode } from '../../shared/types/NodeManager';
 
 interface NewTripleMenuProps {
   onClose: () => void;
@@ -7,7 +9,7 @@ interface NewTripleMenuProps {
   predicates: string[];
   objects: string[];
   onAddPredicate: (newPredicate: string) => void;
-  onAddObject: (newObject: string) => void;
+  onAddObject: (newObject: OntologyNode) => void;
   onAddTriple: (subject: string, predicate: string, object: string) => void;
 }
 
@@ -18,7 +20,7 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
   predicates: initialPredicates,
   onAddPredicate,
   onAddObject,
-  //onAddTriple
+  onAddTriple
 }) => {
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [selectedPredicate, setSelectedPredicate] = useState<string | null>(null);
@@ -57,27 +59,33 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
   };
 
   const handleSubmitObject = (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (!newObject.trim()) {
+    setError('Введите название объекта');
+    return;
+  }
+
+  try {
+    // Вызываем колбэк из пропсов (он добавит узел через OntologyManager)
+    const addedNode = onAddObject(newObject.trim());
     
-    if (!newObject.trim()) {
-      setError('Введите название объекта');
-      return;
+    if (!addedNode) {
+      throw new Error('Не удалось добавить узел');
     }
 
-    if (localObjects.includes(newObject)) {
-      setError('Такой объект уже существует');
-      return;
-    }
-    
-    const updatedObjects = [...localObjects, newObject];
-    setLocalObjects(updatedObjects); // Обновляем локальный список объектов
-    onAddObject(newObject);
+    // Обновляем локальное состояние
+    setLocalObjects(prev => [...prev, addedNode.label]);
     setNewObject('');
     setError('');
-    setSelectedObject(newObject);
-    setIsDropDownObjOpen(true); // Открываем dropdown после добавления
-  };
-
+    setSelectedObject(addedNode.label);
+    
+    console.log('Добавленный узел:', addedNode);
+  } catch (error) {
+    console.error('Ошибка добавления:', error);
+    setError('Ошибка при создании объекта');
+  }
+};
   const handlePredicateSelect = (predicate: string) => {
     setSelectedPredicate(predicate);
     setIsDropDownOpen(false);
@@ -131,7 +139,7 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                   </div>
 
                   {isDropdownSubOpen && (
-                    <div className={styles.predicateDropdownMenu}>
+                    <div className={styles.scrollableDropdownMenu}>
                       {subjects.map((subject) => (
                         <div
                           key={subject}
@@ -163,7 +171,7 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                   </div>
 
                   {isDropdownOpen && (
-                    <div className={styles.predicateDropdownMenu}>
+                    <div className={styles.scrollableDropdownMenu}>
                       {localPredicates.map((predicate) => (
                         <div
                           key={predicate}
@@ -212,18 +220,28 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                   </div>
 
                   {isDropdownObjOpen && (
-                    <div className={styles.predicateDropdownMenu}>
-                      {localObjects.map((object) => ( // Используем localObjects вместо initialObjects
-                        <div
-                          key={object}
-                          className={`${styles.predicateOption} ${
-                            selectedObject === object ? styles.selected : ''
-                          }`}
-                          onClick={() => handleObjectSelect(object)}
-                        >
-                          {object}
-                        </div>
-                      ))}
+                    <div className={styles.scrollableDropdownMenu}>
+                      <div className={styles.dropdownContent}>
+
+                        {localObjects.length > 0 ? (
+                          localObjects.map((object) => (
+                            <div
+                              key={object}
+                              className={`${styles.predicateOption} ${
+                                selectedObject === object ? styles.selected : ''
+                              }`}
+                              onClick={() => {
+                                handleObjectSelect(object);
+                                setIsDropDownObjOpen(false);
+                              }}
+                            >
+                              {object}
+                            </div>
+                          ))
+                        ) : (
+                          <div className={styles.noItems}>Нет доступных объектов</div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

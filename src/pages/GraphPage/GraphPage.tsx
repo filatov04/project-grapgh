@@ -382,6 +382,8 @@ const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [predicates, setPredicates] = useState<string[]>([]);
+  const [listNodes, setListNodes] = useState<string[]>([]);
+
   const [nodes, setNodes] = useState<RDFNode[]>([]);
   const [links, setLinks] = useState<RDFLink[]>([]);
 
@@ -390,9 +392,13 @@ const GraphPage: React.FC = () => {
     const allNodes = OntologyManager.getAllNodes();
     const allLinks = OntologyManager.getAllLinks();
     
-    setNodes(allNodes.map(node => ({ ...node, children: [] })));
-    setLinks(allLinks);
-    setPredicates(OntologyManager.getAvailablePredicates());
+    setNodes(allNodes); 
+    setLinks(allLinks); // это по факту все связи
+    setPredicates(OntologyManager.getAvailablePredicates()); // а это список уникальных
+
+    //console.log(allNodes);
+    //console.log(allLinks);
+    //console.log(OntologyManager.getAvailablePredicates());
   }, []);
 
   // Инициализация данных
@@ -404,7 +410,8 @@ const GraphPage: React.FC = () => {
         OntologyManager.addNode({
           id: node.id,
           label: node.label,
-          type: node.type as NodeType
+          type: node.type as NodeType,
+          children: []
         });
       });
 
@@ -445,8 +452,11 @@ const GraphPage: React.FC = () => {
         children: rootNodes.map(node => nodeMap.get(node.id)!)
       };
     }
+
     return nodeMap.get(rootNodes[0].id);
   }, []);
+
+
   // Добавление нового узла
   const handleAddNode = useCallback((label: string, type: NodeType = 'class') => {
     const id = OntologyManager.generateNodeId(label);
@@ -495,6 +505,7 @@ const GraphPage: React.FC = () => {
     const height = svgEl.clientHeight;
     const g = svg.append('g');
 
+    //console.log(nodes,links);
     const hierarchyData = buildTree(nodes, links);
 
     if (!hierarchyData) return;
@@ -640,6 +651,7 @@ const GraphPage: React.FC = () => {
     svg.call(zoom as any)
       .call(zoom.transform, d3.zoomIdentity.translate(width / 2, 60).scale(0.8));
   }, [nodes, links, buildTree]);
+
   // Эффекты инициализации и отрисовки
   useEffect(() => {
     initializeData();
@@ -669,12 +681,32 @@ const GraphPage: React.FC = () => {
           onClose={() => setShowMenu(false)}
           predicates={predicates}
           subjects={nodes.map(n => n.label)}
-          objects={nodes.filter(n => n.type === 'instance').map(n => n.label)}
+          objects={nodes.map(n => n.label)}
           onAddPredicate={(pred) => {
             PredicateManager.registerPredicate(pred);
             setPredicates(OntologyManager.getAvailablePredicates());
+            //console.log(OntologyManager.getAvailablePredicates());
           }}
-          onAddObject={handleAddObject}
+          onAddObject={(objectLabel) => {
+    // Создаём полноценный узел
+    const newNode = {
+      id: OntologyManager.generateNodeId(objectLabel),
+      label: objectLabel,
+      type: 'instance', // или 'literal' по вашему выбору
+      children: []
+    };
+    
+    // Добавляем через менеджер
+    OntologyManager.addNode(newNode);
+    
+    // Принудительно обновляем состояние
+    const updatedNodes = OntologyManager.getAllNodes();
+    setNodes(updatedNodes);
+    
+    // Для дебага - выводим текущие узлы
+    console.log('Все узлы после добавления:', updatedNodes);
+    return newNode;
+  }}
           onAddTriple={handleAddTriple}
         />
       )}
