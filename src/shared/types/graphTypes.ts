@@ -1,7 +1,7 @@
 interface RDFNode {
   id: string;
   label: string;
-  type: 'class' | 'property';
+  type: 'class' | 'property' | 'literal';
   children: RDFNode[];
   //depth: number;
 }

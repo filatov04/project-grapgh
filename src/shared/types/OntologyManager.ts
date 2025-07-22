@@ -4,7 +4,7 @@ import type { RDFLink, RDFNode } from "./graphTypes";
 export type OntologyNode = {
   id: string;
   label: string;
-  type: 'class' | 'property' | 'instance' | 'literal';
+  type: 'class' | 'property' | 'literal ';
   children?: OntologyNode[]; 
 };
 
@@ -28,21 +28,32 @@ class OntologyManager {
     public clear(): void {
     this.nodes.clear();
     this.links.clear();
-    PredicateManager.clear(); // Если нужно очистить и предикаты
+    PredicateManager.clear(); 
   }
 
-public addNode(node: OntologyNode): OntologyNode {
-  if (!this.nodes.has(node.id)) {
-    const newNode = {
-      ...node,
-      children: node.children || []
-    };
-    this.nodes.set(node.id, newNode);
-    console.log('Узел добавлен в OntologyManager:', newNode); // Для отладки
-    return newNode;
+  public updateNodeType(nodeId: string, newType: OntologyNode['type']): boolean {
+    const node = this.nodes.get(nodeId);
+    if (!node) return false;
+    
+    
+    const updatedNode = { ...node, type: newType };
+    this.nodes.set(nodeId, updatedNode); 
+    
+    return true;
   }
-  return this.nodes.get(node.id)!;
-}
+
+  public addNode(node: OntologyNode): OntologyNode {
+    if (!this.nodes.has(node.id)) {
+      const newNode = {
+        ...node,
+        children: node.children || []
+      };
+      this.nodes.set(node.id, newNode);
+      console.log('Узел добавлен в OntologyManager:', newNode); 
+      return newNode;
+    }
+    return this.nodes.get(node.id)!;
+  }
 
   public addLink(sourceId: string, targetId: string, predicate: string): boolean {
     if (this.nodes.has(sourceId) && this.nodes.has(targetId)) {
@@ -64,15 +75,27 @@ public addNode(node: OntologyNode): OntologyNode {
   public getNodeByLabel(label: string): OntologyNode | undefined {
   return Array.from(this.nodes.values()).find(node => node.label === label);
 }
+  public getLinkByLabel(label: string): RDFLink | undefined {
+  return Array.from(this.links).find(link => link.predicate === label);
+}
+
 
   public getAllNodes(): OntologyNode[] {
     return Array.from(this.nodes.values());
   }
 
-  public getAvailablePredicates(): string[] {
-    return PredicateManager.getAllPredicates();
-  }
+public getAvailablePredicates(): string[] {
 
+  const managerPredicates = PredicateManager.getAllPredicates();
+
+  const propertyNodes = Array.from(this.nodes.values())
+    .filter(node => node.type === 'property')
+    .map(node => node.label);
+
+  const uniquePredicates = [...new Set([...managerPredicates, ...propertyNodes])];
+  
+  return uniquePredicates;
+}
   public getConnectableNodes(): OntologyNode[] {
     return this.getAllNodes().filter(node => node.type !== 'property');
   }
@@ -89,6 +112,46 @@ public addNode(node: OntologyNode): OntologyNode {
     
     return id;
   }
+
+  public getPrefixFromUri(uri: string): string {
+    const knownPrefixes = {
+      'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf:',
+      'http://www.w3.org/2000/01/rdf-schema#': 'rdfs:',
+      'http://www.w3.org/2002/07/owl#': 'owl:',
+      'http://purl.org/dc/elements/1.1/': 'dc:'
+    };
+    for (const [baseUri, prefix] of Object.entries(knownPrefixes)) {
+      if (uri.startsWith(baseUri)) {
+        return prefix + uri.slice(baseUri.length);
+      }
+    }
+    const shortName = uri.includes('#') 
+      ? uri.split('#')[1] 
+      : uri.split('/').pop() || uri;
+    
+  return shortName;
+}
+
+public getAllTriplesWithNode(label: string): { subject: string; predicate: string; object: string }[] {
+  const node = this.getNodeByLabel(label);
+  if (!node) return [];
+
+  const relatedLinks = Array.from(this.links).filter(
+    link => link.source === node.id || link.target === node.id
+  );
+
+  return relatedLinks.map(link => {
+    const subjectNode = this.getNode(link.source);
+    const objectNode = this.getNode(link.target);
+    
+    return {
+      subject: subjectNode ? this.getPrefixFromUri(subjectNode.id) : link.source,
+      predicate: this.getPrefixFromUri(link.predicate),
+      object: objectNode ? this.getPrefixFromUri(objectNode.id) : link.target
+    };
+  });
+}
+
 }
 
 export default OntologyManager.getInstance();

@@ -9,6 +9,7 @@ export type OntologyNode = {
 };
 
 class OntologyManager {
+
   private static instance: OntologyManager;
   private nodes: Map<string, OntologyNode>;
   private links: Set<RDFLink>;
@@ -28,9 +29,10 @@ class OntologyManager {
     public clear(): void {
     this.nodes.clear();
     this.links.clear();
-    PredicateManager.clear(); // Если нужно очистить и предикаты
+    PredicateManager.clear();
   }
 
+  
   public addNode(node: OntologyNode): OntologyNode {
     if (!this.nodes.has(node.id)) {
       this.nodes.set(node.id, node);

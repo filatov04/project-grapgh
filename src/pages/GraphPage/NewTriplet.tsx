@@ -101,14 +101,14 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
     setIsDropDownObjOpen(false);
   };
 
-//   const handleApply = () => {
-//     if (selectedSubject && selectedPredicate && selectedObject) {
-//       onAddTriple(selectedSubject, selectedPredicate, selectedObject);
-//       onClose();
-//     } else {
-//       setError('Выберите субъект, предикат и объект');
-//     }
-//   };
+  const handleApply = () => {
+    if (selectedSubject && selectedPredicate && selectedObject) {
+      onAddTriple(selectedSubject, selectedPredicate, selectedObject);
+      onClose();
+    } else {
+      setError('Выберите субъект, предикат и объект');
+    }
+  };
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -271,7 +271,7 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
           
         </div>
         <button 
-            onClick={onClose}
+            onClick={handleApply}
             className={styles.addButton}
             aria-label="Применить"
             disabled={!selectedSubject || !selectedPredicate || !selectedObject}

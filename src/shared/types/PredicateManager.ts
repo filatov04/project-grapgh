@@ -3,7 +3,7 @@ class PredicateManager {
     private predicates: Set<string>;
     
 
-    private constructor() {  // Исправлено: constructor вместо constractor
+    private constructor() {  
         this.predicates = new Set();
 
     }
