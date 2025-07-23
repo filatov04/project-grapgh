@@ -117,14 +117,47 @@
   border-radius: 4px;
   padding: 8px;
   margin-bottom: 8px;
-  box-sizing: border-box; /* Важно для корректной ширины */
+  box-sizing: border-box;
   resize: vertical;
+}
+
+.comment-popup-selects-select {
+  appearance: none;
+  background-color: #f8f9fa;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px 32px 8px 12px;
+  font-size: 15px;
+  color: #333;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  margin-left: 12px;
+
+  /* Стрелочка для select */
+  background-image: url("data:image/svg+xml;utf8,<svg fill='gray' height='16' viewBox='0 0 20 20' width='16' xmlns='http://www.w3.org/2000/svg'><path d='M7.293 8.293a1 1 0 011.414 0L10 9.586l1.293-1.293a1 1 0 111.414 1.414l-2 2a1 1 0 01-1.414 0l-2-2a1 1 0 010-1.414z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 18px 18px;
+  
+  /* Для плавного эффекта при фокусе */
+  &:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.15);
+  }
+}
+.comment-popup-selects {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .comment-popup-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  margin-top: 12px;
 }
 
 .comment-popup-actions button {

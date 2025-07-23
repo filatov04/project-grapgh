@@ -8,19 +8,19 @@ import type { FC, ChangeEvent, MouseEvent, ReactNode } from 'react';
 import './CommentableText.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
 
-type TripletType = 'S' | 'O' | 'R' | null;
+const MOCK_SUBJECTS = ['Субъект 1', 'Субъект 2', 'Субъект 3', 'Другой Субъект'];
+const MOCK_PREDICATES = ['является частью', 'имеет свойство', 'относится к', 'создан из'];
 
 const VOID_ELEMENTS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
 // TODO: добавить типы для комментариев
 interface Comment {
   id: number;
-  text: string;
   startIndex: number;
   endIndex: number;
-  tripletType: TripletType;
-  predicate?: string;
-  object?: string;
+  subject: string;
+  predicate: string;
+  object: string; // The highlighted text
   createdAt?: Date;
   author?: string;
 }
@@ -38,60 +38,36 @@ interface HoveredCommentData {
 
 interface CommentInputPopupProps {
   position: { x: number; y: number };
-  onSave: (commentText: string, tripletType: TripletType) => void;
+  onSave: (subject: string, predicate: string) => void;
   onCancel: () => void;
 }
 
 const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCancel }) => {
-  const [commentText, setCommentText] = useState<string>('');
-  const [tripletType, setTripletType] = useState<TripletType>(null);
+  const [subject, setSubject] = useState<string>(MOCK_SUBJECTS[0]);
+  const [predicate, setPredicate] = useState<string>(MOCK_PREDICATES[0]);
 
   const handleSave = () => {
-    // Разрешаем сохранение если есть текст комментария ИЛИ выбран тип триплета
-    if (commentText.trim() || tripletType) {
-      onSave(commentText, tripletType);
+    if (subject && predicate) {
+      onSave(subject, predicate);
     }
-  };
-
-  const handleTripletTypeClick = (type: TripletType) => {
-    setTripletType(type);
-  };
-
-  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setCommentText(e.target.value);
   };
 
   return (
     <div className="comment-popup" style={{ top: position.y, left: position.x }}>
-      <div className="triplet-buttons">
-        <button 
-          className={`triplet-btn ${tripletType === 'S' ? 'active' : ''}`}
-          data-type="S"
-          onClick={() => handleTripletTypeClick('S')}
-        >
-          S
-        </button>
-        <button 
-          className={`triplet-btn ${tripletType === 'O' ? 'active' : ''}`}
-          data-type="O"
-          onClick={() => handleTripletTypeClick('O')}
-        >
-          O
-        </button>
-        <button 
-          className={`triplet-btn ${tripletType === 'R' ? 'active' : ''}`}
-          data-type="R"
-          onClick={() => handleTripletTypeClick('R')}
-        >
-          R
-        </button>
+      <div className="comment-popup-selects">
+        <label>
+          <span>Субъект:</span>
+          <select className='comment-popup-selects-select' id='subject' value={subject} onChange={(e) => setSubject(e.target.value)}>
+            {MOCK_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Предикат:</span>
+          <select className='comment-popup-selects-select' id='predicate' value={predicate} onChange={(e) => setPredicate(e.target.value)}>
+            {MOCK_PREDICATES.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
       </div>
-      <textarea
-        placeholder="Ваш комментарий (необязательно)..."
-        value={commentText}
-        onChange={handleChange}
-        autoFocus
-      />
       <div className="comment-popup-actions">
         <button onClick={handleSave}>Сохранить</button>
         <button onClick={onCancel}>Отмена</button>
@@ -109,20 +85,12 @@ interface CommentTooltipProps {
 const CommentTooltip: FC<CommentTooltipProps> = ({ comment, position }) => {
   return (
     <div className="comment-tooltip" style={{ top: position.y, left: position.x }}>
-      {comment.tripletType && (
-        <div className={`triplet-type-badge triplet-badge-${comment.tripletType.toLowerCase()}`}>
-          {comment.tripletType}
-        </div>
-      )}
-      {comment.text.trim() && (
-        <div className="comment-text">
-          {comment.text}
-        </div>
-      )}
+      <div><strong>Субъект:</strong> {comment.subject}</div>
+      <div><strong>Предикат:</strong> {comment.predicate}</div>
+      <div><strong>Объект:</strong> {comment.object}</div>
     </div>
   );
 };
-
 
 interface MarkupEditorProps {}
 
@@ -209,17 +177,20 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
   };
 
   const handleSaveComment = (
-    commentText: string,
-    tripletType: TripletType
+    subject: string,
+    predicate: string
   ): void => {
     if (!selection) return;
 
+    const objectText = textContainerRef.current?.textContent?.substring(selection.startIndex, selection.endIndex) || '';
+
     const newComment: Comment = {
       id: Date.now(),
-      text: commentText || '',
       startIndex: selection.startIndex,
       endIndex: selection.endIndex,
-      tripletType,
+      subject,
+      predicate,
+      object: objectText,
     };
 
     setComments((prevComments) =>
@@ -263,11 +234,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
             segments.push(
               <span
                 key={comment.id}
-                className={`highlighted-text ${
-                  comment.tripletType
-                    ? `triplet-${comment.tripletType.toLowerCase()}`
-                    : ''
-                }`}
+                className="highlighted-text"
                 data-comment-id={comment.id}
               >
                 {nodeText.substring(start, end)}
@@ -337,7 +304,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
       if (highlightSpan) {
         const commentId = Number(highlightSpan.dataset.commentId);
         const comment = comments.find((c) => c.id === commentId);
-        if (comment && (comment.text.trim() || comment.tripletType)) {
+        if (comment) {
           setHoveredComment({
             comment,
             rect: highlightSpan.getBoundingClientRect(),
@@ -398,4 +365,4 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
   );
 };
 
-export { MarkupEditor as CommentableText };
+export { MarkupEditor };
