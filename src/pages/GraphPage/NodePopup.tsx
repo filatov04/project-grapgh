@@ -4,17 +4,23 @@ import type { RDFNode } from '../../shared/types/graphTypes';
 import OntologyManager from '../../shared/types/OntologyManager';
 import { NewTripleMenu } from './NewTriplet';
 import PredicateManager from '../../shared/types/PredicateManager';
+import { EditNode } from './EditNode';
+import { DeleteNodeMenu } from './DeleteNodeMenu';
 
 const NodePopup: React.FC<{
   node: RDFNode;
   onClose: () => void;
   position: { x: number; y: number };
   onUpdate: () => void; 
-}> = ({ node, position, onClose, onUpdate  }) => {
+  setSelectedNode: (node: RDFNode) => void;
+}> = ({ node, position, onClose, onUpdate, setSelectedNode  }) => {
     const [showNewTripleMenu, setShowNewTripleMenu] = useState(false);
+    const [showEditNoteMenu, setEditNodeMenu] = useState(false);
     const [predicates, setPredicates] = useState<string[]>([]);
     const [objects, setObjects] = useState<string[]>([]);
 
+    const [nodeToDelete, setNodeToDelete] = useState<RDFNode | null>(null);
+    
     const updateData = () => {
         setPredicates(OntologyManager.getAvailablePredicates());
         setObjects(
@@ -28,7 +34,7 @@ const NodePopup: React.FC<{
         updateData();
     }, [node.id]);
 
-      const handleAddTriple = (subject: string, predicate: string, object: string) => {
+    const handleAddTriple = (subject: string, predicate: string, object: string) => {
     const subjectNode = OntologyManager.getNodeByLabel(subject);
     const objectNode = OntologyManager.getNodeByLabel(object);
     
@@ -57,6 +63,38 @@ const NodePopup: React.FC<{
     return true;
   };
 
+  const handleChangeNodeNome = (node: RDFNode, newLabel: string) => {
+    if (!node){
+        console.error("Узел не существует");
+        return false;
+    }
+    if (newLabel.trim() === node.label) {
+        return true; 
+     }
+  
+    const success = OntologyManager.updateNodeLabel(node.id, newLabel);
+    if (success) {
+
+        alert('Название успешно изменено');
+        setSelectedNode({ ...node, label: newLabel });
+        onUpdate();
+        updateData(); 
+    }
+
+    console.log(OntologyManager.getAllNodes());
+    console.log(OntologyManager.getAllLinks());
+  
+    return success;
+
+  }
+
+  const handleDeleteTriple = () => {
+
+  }
+
+  const handleOpenDeleteDialog = (node: RDFNode) => {
+    setNodeToDelete(node);
+  };
     const triples = OntologyManager.getAllTriplesWithNode(node.label);
 
     return (
@@ -95,8 +133,21 @@ const NodePopup: React.FC<{
                 >
                     Создать триплет
                 </button>
-                <button className={styles.menuButton}>Удалить триплет</button>
-                <button className={styles.menuButton}>Редактировать</button>
+                <button 
+                    className={styles.menuButton}
+                    onClick = {() => setEditNodeMenu(true)}
+                >
+                    Редактировать
+                    </button>
+
+
+
+                <button 
+                    className={styles.menuButton}
+                    onClick = {() => setNodeToDelete(node)}
+                    
+                >
+                    Удалить триплет</button>
             </div>
 
             {showNewTripleMenu && (
@@ -123,6 +174,23 @@ const NodePopup: React.FC<{
                     }}
                     onAddTriple={handleAddTriple}
                 />
+            )}
+            {showEditNoteMenu && (
+                <EditNode
+                    onClose={() => setEditNodeMenu(false)}
+                    currentNode={node}
+                    onUpdate={handleChangeNodeNome}
+                />
+            )}
+
+            {nodeToDelete && (
+            <DeleteNodeMenu
+                onClose={() => setNodeToDelete(null)}
+                triples={OntologyManager.getAllTriplesWithNode(nodeToDelete.label)}
+                node={nodeToDelete}
+                onDeleteConfirm={(id) => OntologyManager.deleteNode(id)}
+                onUpdate={onUpdate}
+            />
             )}
         </div>
     );

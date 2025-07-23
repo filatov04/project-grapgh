@@ -1,3 +1,4 @@
+import { version } from "react";
 import PredicateManager from "./PredicateManager";
 import type { RDFLink, RDFNode } from "./graphTypes";
 
@@ -6,6 +7,8 @@ export type OntologyNode = {
   label: string;
   type: 'class' | 'property' | 'literal ';
   children?: OntologyNode[]; 
+  author: string;
+  version: number;
 };
 
 class OntologyManager {
@@ -42,10 +45,103 @@ class OntologyManager {
     return true;
   }
 
+
+
+  public updateNodeLabel(nodeId: string, newLabel: string): boolean {
+    const node = this.nodes.get(nodeId);
+    if (!node) return false;
+
+
+    let newId: string;
+    const hashIndex = nodeId.indexOf('#');
+    
+    if (hashIndex !== -1) {
+        newId = nodeId.substring(0, hashIndex + 1) + newLabel;
+    } else {
+        newId = newLabel;
+    }
+
+
+    const updatedNode = { 
+        ...node, 
+        id: newId, 
+        label: newLabel 
+    };
+
+
+    this.nodes.delete(nodeId);
+    this.nodes.set(newId, updatedNode);
+
+
+    if (this.links instanceof Map) {
+        const newLinks = new Map<string, RDFLink>();
+        
+        this.links.forEach((link, key) => {
+            if (link.source === nodeId) {
+                newLinks.set(key, { ...link, source: newId });
+            } else if (link.target === nodeId) {
+                newLinks.set(key, { ...link, target: newId });
+            } else {
+                newLinks.set(key, link);
+            }
+        });
+        
+        this.links = newLinks;
+    } 
+
+    else if (this.links instanceof Set) {
+        const newLinks = new Set<RDFLink>();
+        
+        this.links.forEach(link => {
+            if (link.source === nodeId) {
+                newLinks.add({ ...link, source: newId });
+            } else if (link.target === nodeId) {
+                newLinks.add({ ...link, target: newId });
+            } else {
+                newLinks.add(link);
+            }
+        });
+        
+        this.links = newLinks;
+    }
+
+    else if (Array.isArray(this.links)) {
+        this.links = this.links.map(link => {
+            if (link.source === nodeId) {
+                return { ...link, source: newId };
+            }
+            if (link.target === nodeId) {
+                return { ...link, target: newId };
+            }
+            return link;
+        });
+    } else {
+        console.error('Неизвестный тип для this.links:', this.links);
+        return false;
+    }
+
+
+    this.nodes.forEach(n => {
+        if (n.children) {
+            const childIndex = n.children.findIndex(child => child.id === nodeId);
+            if (childIndex !== -1) {
+                const updatedChildren = [...n.children];
+                updatedChildren[childIndex] = updatedNode;
+                this.nodes.set(n.id, { ...n, children: updatedChildren });
+            }
+        }
+    });
+
+    return true;
+}
+
+
   public addNode(node: OntologyNode): OntologyNode {
     if (!this.nodes.has(node.id)) {
       const newNode = {
         ...node,
+        version: 0,
+        author: 'noname',
         children: node.children || []
       };
       this.nodes.set(node.id, newNode);
@@ -151,6 +247,35 @@ public getAllTriplesWithNode(label: string): { subject: string; predicate: strin
     };
   });
 }
+public deleteNode(nodeId: string): boolean {
+    const nodeToDelete = this.nodes.get(nodeId);
+    if (!nodeToDelete) {
+        console.warn(`Node with id ${nodeId} not found`);
+        return false;
+    }
+
+    const linksToDelete = new Set<RDFLink>();
+    this.links.forEach(link => {
+        if (link.source === nodeId || link.target === nodeId) {
+            linksToDelete.add(link);
+        }
+    });
+
+    linksToDelete.forEach(link => {
+        this.links.delete(link);
+    });
+
+    this.nodes.forEach(node => {
+        if (node.children) {
+            node.children = node.children.filter(child => child.id !== nodeId);
+        }
+    });
+
+    this.nodes.delete(nodeId);
+
+    return true;
+}
+
 
 }
 

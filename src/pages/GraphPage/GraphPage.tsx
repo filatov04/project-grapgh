@@ -4,18 +4,12 @@ import styles from "./GraphPage.module.css";
 import { NewTripleMenu } from "./NewTriplet";
 import OntologyManager from "../../shared/types/OntologyManager";
 import PredicateManager from "../../shared/types/PredicateManager";
-import type { RDFLink } from "../../shared/types/graphTypes";
+import type { RDFNode, RDFLink } from "../../shared/types/graphTypes";
 import graphData from '../../../public/input.json';
-import NodePopup from "./NodeMenu";
-
+import NodePopup from "./NodePopup";
+import { EditNode } from "./EditNode";
 type NodeType =  'class' | 'property' | 'literal';
 
-interface RDFNode {
-  id: string;
-  label: string;
-  type: NodeType;
-  children: RDFNode[];
-}
 
 const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -33,7 +27,6 @@ const GraphPage: React.FC = () => {
     setNodes(allNodes); 
     setLinks(allLinks); // это по факту все связи
     setPredicates(OntologyManager.getAvailablePredicates()); // а это список уникальных
-
   }, []);
 
   
@@ -158,8 +151,8 @@ const GraphPage: React.FC = () => {
 
       const root = d3.hierarchy(hierarchyData);
       const treeLayout = d3.tree<RDFNode>()
-        .size([height * 0.4, width * 0.4])
-        .separation((a, b) => 0.5);
+        .size([height * 2, width * 0.5])
+        .separation((a, b) => 0.8);
 
       treeLayout(root);
 
@@ -376,6 +369,7 @@ const GraphPage: React.FC = () => {
         onClose={() => setSelectedNode(null)}
         position={popupPosition}
         onUpdate={updateDataFromManager} 
+        setSelectedNode={setSelectedNode}
       />
     )}
     </div>
