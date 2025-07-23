@@ -1,11 +1,16 @@
-import React, { useState, useMemo, useRef } from 'react';
-import type { FC, ChangeEvent, MouseEvent } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+} from 'react';
+import type { FC, ChangeEvent, MouseEvent, ReactNode } from 'react';
 import './CommentableText.css';
-
-import parse from 'html-react-parser';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
 
 type TripletType = 'S' | 'O' | 'R' | null;
+
+const VOID_ELEMENTS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
 // TODO: добавить типы для комментариев
 interface Comment {
@@ -119,60 +124,81 @@ const CommentTooltip: FC<CommentTooltipProps> = ({ comment, position }) => {
 };
 
 
-interface CommentableTextProps {
-  initialText: string;
-}
+interface MarkupEditorProps {}
 
-const CommentableText: FC<CommentableTextProps> = ({ initialText }) => {
+const MarkupEditor: FC<MarkupEditorProps> = () => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [selection, setSelection] = useState<SelectionData | null>(null);
   const [hoveredComment, setHoveredComment] = useState<HoveredCommentData | null>(null);
+  const [rawHtml, setRawHtml] = useState<string>('');
+  const textContainerRef = useRef<HTMLDivElement>(null);
 
-  // HTML как строка
-  const [htmlString, setHtmlString] = useState<string>("");
   const handleFileRead = (content: string) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
-    const bodyContent = doc.body.innerHTML;
-    setHtmlString(bodyContent);
-    console.log("HTML как строка:", bodyContent);
+    setRawHtml(doc.body.innerHTML);
+    setComments([]);
+    setSelection(null);
+    setHoveredComment(null);
   };
-  
-  const textContainerRef = useRef<HTMLDivElement>(null);
 
   const handleMouseUp = (): void => {
     const currentSelection = window.getSelection();
-    if (!currentSelection || currentSelection.isCollapsed) {
+    if (
+      !currentSelection ||
+      currentSelection.isCollapsed ||
+      !textContainerRef.current
+    ) {
       setSelection(null);
       return;
     }
 
     const range = currentSelection.getRangeAt(0);
 
-    if (!textContainerRef.current || !textContainerRef.current.contains(range.commonAncestorContainer)) {
+    if (!textContainerRef.current.contains(range.commonAncestorContainer)) {
       return;
     }
-    
-    const selectionText = range.toString();
-    if (selectionText.trim().length === 0) {
-      return;
-    }
-    
-    const preSelectionRange = document.createRange();
-    preSelectionRange.setStart(textContainerRef.current, 0);
-    preSelectionRange.setEnd(range.startContainer, range.startOffset);
-    
-    const startIndex = preSelectionRange.toString().length;
-    const endIndex = startIndex + selectionText.length;
 
-    const isOverlapping = comments.some(c => 
-        (startIndex < c.endIndex && endIndex > c.startIndex)
+    const getTextOffset = (node: Node, offset: number): number => {
+      let textOffset = 0;
+      const walker = document.createTreeWalker(
+        textContainerRef.current!,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+      let currentNode = walker.nextNode();
+      while (currentNode) {
+        if (currentNode === node) {
+          textOffset += offset;
+          break;
+        }
+        textOffset += currentNode.textContent?.length || 0;
+        if (currentNode === node) {
+          break;
+        }
+        currentNode = walker.nextNode();
+      }
+      return textOffset;
+    };
+
+    const startIndex = getTextOffset(range.startContainer, range.startOffset);
+    const endIndex = getTextOffset(range.endContainer, range.endOffset);
+
+    if (startIndex >= endIndex) {
+      setSelection(null);
+      return;
+    }
+
+    const isOverlapping = comments.some(
+      (c) => startIndex < c.endIndex && endIndex > c.startIndex
     );
 
     if (isOverlapping) {
-        alert("Нельзя создавать комментарии, пересекающиеся с другими. Попробуйте выделить другой фрагмент.");
-        window.getSelection()?.removeAllRanges();
-        return;
+      alert(
+        'Нельзя создавать комментарии, пересекающиеся с другими. Попробуйте выделить другой фрагмент.'
+      );
+      window.getSelection()?.removeAllRanges();
+      return;
     }
 
     setSelection({
@@ -182,107 +208,194 @@ const CommentableText: FC<CommentableTextProps> = ({ initialText }) => {
     });
   };
 
-  const handleSaveComment = (commentText: string, tripletType: TripletType): void => {
+  const handleSaveComment = (
+    commentText: string,
+    tripletType: TripletType
+  ): void => {
     if (!selection) return;
 
     const newComment: Comment = {
       id: Date.now(),
-      text: commentText || '', // Если текст пустой, используем пустую строку
+      text: commentText || '',
       startIndex: selection.startIndex,
       endIndex: selection.endIndex,
       tripletType,
     };
-    
-    setComments(prevComments => 
+
+    setComments((prevComments) =>
       [...prevComments, newComment].sort((a, b) => a.startIndex - b.startIndex)
     );
-    
+
     setSelection(null);
     window.getSelection()?.removeAllRanges();
   };
 
-  const handleHighlightMouseEnter = (event: MouseEvent<HTMLSpanElement>, comment: Comment): void => {
-    // Показываем тултип только если есть текст комментария или тип триплета
-    if (comment.text.trim() || comment.tripletType) {
-      setHoveredComment({
-        comment,
-        rect: event.currentTarget.getBoundingClientRect(),
-      });
+  const renderedHtml = useMemo(() => {
+    if (!rawHtml) {
+      return null;
     }
-  };
 
-  const handleHighlightMouseLeave = (): void => {
-    setHoveredComment(null);
-  };
+    const root = new DOMParser().parseFromString(rawHtml, 'text/html').body;
+    let textOffset = 0;
 
-  const renderedText = useMemo(() => {
-    if (comments.length === 0) {
-      return [initialText];
-    }
-    
-    const segments: React.ReactNode[] = [];
-    let lastIndex = 0;
+    const highlightNodes = (node: Node): ReactNode => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const nodeText = node.textContent || '';
+        const segments: ReactNode[] = [];
+        let lastIndex = 0;
 
-    comments.forEach((comment) => {
-      if (comment.startIndex > lastIndex) {
-        segments.push(
-          <span key={`text-${lastIndex}`}>{initialText.substring(lastIndex, comment.startIndex)}</span>
-        );
+        const relevantComments = comments
+          .filter(
+            (c) =>
+              c.startIndex < textOffset + nodeText.length &&
+              c.endIndex > textOffset
+          )
+          .sort((a, b) => a.startIndex - b.startIndex);
+
+        relevantComments.forEach((comment) => {
+          const start = Math.max(0, comment.startIndex - textOffset);
+          const end = Math.min(nodeText.length, comment.endIndex - textOffset);
+
+          if (start > lastIndex) {
+            segments.push(nodeText.substring(lastIndex, start));
+          }
+          if (end > start) {
+            segments.push(
+              <span
+                key={comment.id}
+                className={`highlighted-text ${
+                  comment.tripletType
+                    ? `triplet-${comment.tripletType.toLowerCase()}`
+                    : ''
+                }`}
+                data-comment-id={comment.id}
+              >
+                {nodeText.substring(start, end)}
+              </span>
+            );
+          }
+          lastIndex = Math.max(lastIndex, end);
+        });
+
+        if (lastIndex < nodeText.length) {
+          segments.push(nodeText.substring(lastIndex));
+        }
+        textOffset += nodeText.length;
+        return <>{segments}</>;
       }
-             segments.push(
-         <span
-           key={comment.id}
-           className={`highlighted-text ${comment.tripletType ? `triplet-${comment.tripletType.toLowerCase()}` : ''}`}
-           onMouseEnter={(e) => handleHighlightMouseEnter(e, comment)}
-           onMouseLeave={handleHighlightMouseLeave}
-         >
-           {initialText.substring(comment.startIndex, comment.endIndex)}
-         </span>
-       );
-      lastIndex = comment.endIndex;
-    });
 
-    if (lastIndex < initialText.length) {
-      segments.push(
-        <span key={`text-${lastIndex}`}>{initialText.substring(lastIndex)}</span>
-      );
-    }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const element = node as HTMLElement;
+        const nodeName = node.nodeName.toLowerCase();
+        
+        const props: { [key: string]: any } = {};
+        for (let i = 0; i < element.attributes.length; i++) {
+            const attr = element.attributes[i];
+            const propName = attr.name === 'class' ? 'className' : attr.name;
+            if (propName === 'style') {
+                const styleObj: {[key: string]: string} = {};
+                attr.value.split(';').forEach(style => {
+                    const [key, value] = style.split(':');
+                    if (key && value) {
+                      const camelCasedKey = key.trim().replace(/-./g, c => c.substring(1).toUpperCase());
+                      styleObj[camelCasedKey] = value.trim();
+                    }
+                });
+                props.style = styleObj;
+            } else {
+                 props[propName] = attr.value;
+            }
+        }
 
-    return segments;
-  }, [initialText, comments]);
+        if (VOID_ELEMENTS.has(nodeName)) {
+            return React.createElement(nodeName, props);
+        }
+
+        const children = Array.from(node.childNodes).map((child, i) => (
+          <React.Fragment key={i}>{highlightNodes(child)}</React.Fragment>
+        ));
+
+        return React.createElement(nodeName, props, children);
+      }
+      return null;
+    };
+
+    return Array.from(root.childNodes).map((node, i) => (
+        <React.Fragment key={i}>{highlightNodes(node)}</React.Fragment>
+    ));
+  }, [rawHtml, comments]);
+
+
+  useEffect(() => {
+    const container = textContainerRef.current;
+    if (!container) return;
+
+    const handleMouseEnter = (event: globalThis.MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const highlightSpan = target.closest('.highlighted-text') as HTMLElement;
+
+      if (highlightSpan) {
+        const commentId = Number(highlightSpan.dataset.commentId);
+        const comment = comments.find((c) => c.id === commentId);
+        if (comment && (comment.text.trim() || comment.tripletType)) {
+          setHoveredComment({
+            comment,
+            rect: highlightSpan.getBoundingClientRect(),
+          });
+        }
+      }
+    };
+
+    const handleMouseLeave = (event: globalThis.MouseEvent) => {
+       const target = event.target as HTMLElement;
+       if (target.closest('.highlighted-text')){
+           setHoveredComment(null);
+       }
+    };
+
+    container.addEventListener('mouseover', handleMouseEnter);
+    container.addEventListener('mouseout', handleMouseLeave);
+
+    return () => {
+      container.removeEventListener('mouseover', handleMouseEnter);
+      container.removeEventListener('mouseout', handleMouseLeave);
+    };
+  }, [comments]);
+
 
   return (
     <div className="commentable-container">
+      <FileHTMLToString onFileRead={handleFileRead} />
       <div
         ref={textContainerRef}
         className="text-content"
         onMouseUp={handleMouseUp}
       >
-        {renderedText}
+        {renderedHtml}
       </div>
-      
+
       {selection && (
         <CommentInputPopup
-          position={{ x: selection.rect.left, y: selection.rect.bottom + window.scrollY + 5 }}
+          position={{
+            x: selection.rect.left,
+            y: selection.rect.bottom + window.scrollY + 5,
+          }}
           onSave={handleSaveComment}
           onCancel={() => setSelection(null)}
         />
       )}
-      
-      {hoveredComment && (
-          <CommentTooltip 
-            comment={hoveredComment.comment}
-            position={{ x: hoveredComment.rect.left, y: hoveredComment.rect.bottom + window.scrollY + 5 }}
-          />
-      )}
 
-      {/* TODO: добавить возможность загружать HTML файл */}
-      <FileHTMLToString onFileRead={handleFileRead} />
-      <div style={{ overflowY: "auto", maxHeight: "100vh", width: "80%", margin: "0 auto", border: "1px solid black" }}>
-        {parse(htmlString)}
-      </div>
+      {hoveredComment && (
+        <CommentTooltip
+          comment={hoveredComment.comment}
+          position={{
+            x: hoveredComment.rect.left,
+            y: hoveredComment.rect.bottom + window.scrollY + 5,
+          }}
+        />
+      )}
     </div>
   );
 };
 
-export { CommentableText };
+export { MarkupEditor as CommentableText };
