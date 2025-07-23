@@ -13,18 +13,6 @@ const MOCK_PREDICATES = ['является частью', 'имеет свойс
 
 const VOID_ELEMENTS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
-// TODO: добавить типы для комментариев
-interface Comment {
-  id: number;
-  startIndex: number;
-  endIndex: number;
-  subject: string;
-  predicate: string;
-  object: string; // The highlighted text
-  createdAt?: Date;
-  author?: string;
-}
-
 interface SelectionData {
   startIndex: number;
   endIndex: number;
