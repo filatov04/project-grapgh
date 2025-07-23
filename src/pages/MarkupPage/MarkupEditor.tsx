@@ -2,14 +2,22 @@ import React, { useState, useMemo, useRef } from 'react';
 import type { FC, ChangeEvent, MouseEvent } from 'react';
 import './CommentableText.css';
 
+import parse from 'html-react-parser';
+import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
+
 type TripletType = 'S' | 'O' | 'R' | null;
 
+// TODO: добавить типы для комментариев
 interface Comment {
   id: number;
   text: string;
   startIndex: number;
   endIndex: number;
   tripletType: TripletType;
+  predicate?: string;
+  object?: string;
+  createdAt?: Date;
+  author?: string;
 }
 
 interface SelectionData {
@@ -119,6 +127,16 @@ const CommentableText: FC<CommentableTextProps> = ({ initialText }) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [selection, setSelection] = useState<SelectionData | null>(null);
   const [hoveredComment, setHoveredComment] = useState<HoveredCommentData | null>(null);
+
+  // HTML как строка
+  const [htmlString, setHtmlString] = useState<string>("");
+  const handleFileRead = (content: string) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, 'text/html');
+    const bodyContent = doc.body.innerHTML;
+    setHtmlString(bodyContent);
+    console.log("HTML как строка:", bodyContent);
+  };
   
   const textContainerRef = useRef<HTMLDivElement>(null);
 
@@ -257,6 +275,12 @@ const CommentableText: FC<CommentableTextProps> = ({ initialText }) => {
             position={{ x: hoveredComment.rect.left, y: hoveredComment.rect.bottom + window.scrollY + 5 }}
           />
       )}
+
+      {/* TODO: добавить возможность загружать HTML файл */}
+      <FileHTMLToString onFileRead={handleFileRead} />
+      <div style={{ overflowY: "auto", maxHeight: "100vh", width: "80%", margin: "0 auto", border: "1px solid black" }}>
+        {parse(htmlString)}
+      </div>
     </div>
   );
 };
