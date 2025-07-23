@@ -1,5 +1,5 @@
 export interface CommentInterface {
-  id: number;
+  id: string;
   startIndex: number;
   endIndex: number;
   subject: string;

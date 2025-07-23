@@ -7,6 +7,9 @@ import React, {
 import type { FC, ChangeEvent, MouseEvent, ReactNode } from 'react';
 import './CommentableText.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
+import { postMarkup } from '../../shared/api/markupApi';
+import type { CommentInterface } from '../../shared/types/markupTypes';
+import { v4 as uuidv4 } from 'uuid';
 
 const MOCK_SUBJECTS = ['Субъект 1', 'Субъект 2', 'Субъект 3', 'Другой Субъект'];
 const MOCK_PREDICATES = ['является частью', 'имеет свойство', 'относится к', 'создан из'];
@@ -20,7 +23,7 @@ interface SelectionData {
 }
 
 interface HoveredCommentData {
-  comment: Comment;
+  comment: CommentInterface;
   rect: DOMRect;
 }
 
@@ -66,7 +69,7 @@ const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCan
 
 
 interface CommentTooltipProps {
-  comment: Comment;
+  comment: CommentInterface;
   position: { x: number; y: number };
 }
 
@@ -83,10 +86,12 @@ const CommentTooltip: FC<CommentTooltipProps> = ({ comment, position }) => {
 interface MarkupEditorProps {}
 
 const MarkupEditor: FC<MarkupEditorProps> = () => {
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<CommentInterface[]>([]);
   const [selection, setSelection] = useState<SelectionData | null>(null);
   const [hoveredComment, setHoveredComment] = useState<HoveredCommentData | null>(null);
   const [rawHtml, setRawHtml] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const textContainerRef = useRef<HTMLDivElement>(null);
 
   const handleFileRead = (content: string) => {
@@ -172,8 +177,8 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
     const objectText = textContainerRef.current?.textContent?.substring(selection.startIndex, selection.endIndex) || '';
 
-    const newComment: Comment = {
-      id: Date.now(),
+    const newComment: CommentInterface = {
+      id: uuidv4(),
       startIndex: selection.startIndex,
       endIndex: selection.endIndex,
       subject,
@@ -187,6 +192,21 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
     setSelection(null);
     window.getSelection()?.removeAllRanges();
+  };
+
+  const handleSaveMarkup = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+    try {
+      // fileHash можно получить из пропсов или состояния, здесь пример с 'testHash'
+      await postMarkup('testHash', comments);
+      setSaveSuccess(true);
+    } catch (e) {
+      setSaveSuccess(false);
+      alert('Ошибка при сохранении разметки');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const renderedHtml = useMemo(() => {
@@ -290,7 +310,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
       const highlightSpan = target.closest('.highlighted-text') as HTMLElement;
 
       if (highlightSpan) {
-        const commentId = Number(highlightSpan.dataset.commentId);
+        const commentId = highlightSpan.dataset.commentId;
         const comment = comments.find((c) => c.id === commentId);
         if (comment) {
           setHoveredComment({
@@ -320,6 +340,35 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
   return (
     <div className="commentable-container">
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <button
+          onClick={handleSaveMarkup}
+          disabled={isSaving}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 12,
+            background: '#27ae60',
+            color: 'white',
+            border: 'none',
+            fontSize: 24,
+            fontWeight: 'bold',
+            cursor: isSaving ? 'not-allowed' : 'pointer',
+            marginRight: 16,
+            position: 'relative',
+            transition: 'background 0.2s',
+          }}
+        >
+          {isSaving ? (
+            <span className="loader" style={{ width: 24, height: 24, display: 'inline-block', border: '3px solid #fff', borderTop: '3px solid #27ae60', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          ) : (
+            '💾'
+          )}
+        </button>
+        {saveSuccess && (
+          <span style={{ color: '#27ae60', fontWeight: 'bold', fontSize: 18 }}>✔ Разметка успешно сохранена</span>
+        )}
+      </div>
       <FileHTMLToString onFileRead={handleFileRead} />
       <div
         ref={textContainerRef}
