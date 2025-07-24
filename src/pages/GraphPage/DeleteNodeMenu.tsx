@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import styles from './GraphPage.module.css';
-import type { RDFNode } from '../../shared/types/graphTypes';
-import OntologyManager from '../../shared/types/OntologyManager';
+import OntologyManager, { type OntologyNode } from '../../shared/types/OntologyManager';
 
 
 interface DeleteNodeMenuProps {
   onClose: () => void;
   triples: {subject: string; predicate: string; object: string}[];
-  onUpdate: (node: RDFNode, newLabel: string) => void;
-  node: RDFNode;
+  onUpdate: (node: OntologyNode, newLabel: string) => void;
+  node: OntologyNode;
   onDeleteConfirm: (nodeId: string) => void;
 }
 
@@ -22,7 +21,7 @@ export const DeleteNodeMenu: React.FC<DeleteNodeMenuProps> = ({
     
   const handleDelete = () => {
     onDeleteConfirm(node.id);
-    onUpdate();
+    onUpdate(node, node.label);
     onClose();
   };
   

@@ -4,12 +4,11 @@ import React, {
   useRef,
   useEffect,
 } from 'react';
-import type { FC, ChangeEvent, MouseEvent, ReactNode } from 'react';
+import type { FC, ReactNode } from 'react';
 import styles from './MarkupEditor.module.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
 import { postMarkup } from '../../shared/api/markupApi';
 import type { CommentInterface } from '../../shared/types/markupTypes';
-import { v4 as uuidv4 } from 'uuid';
 
 const MOCK_SUBJECTS = ['Субъект 1', 'Субъект 2', 'Субъект 3', 'Другой Субъект'];
 const MOCK_PREDICATES = ['является частью', 'имеет свойство', 'относится к', 'создан из'];
@@ -177,18 +176,24 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
     const objectText = textContainerRef.current?.textContent?.substring(selection.startIndex, selection.endIndex) || '';
 
+    // TODO: get filename from file
     const newComment: CommentInterface = {
-      id: uuidv4(),
+      id: Date.now(),
       startIndex: selection.startIndex,
       endIndex: selection.endIndex,
       subject,
       predicate,
       object: objectText,
+      filename: 'test.html',
+      createdAt: new Date().toISOString(),
+      author: 'test',
     };
 
-    setComments((prevComments) =>
-      [...prevComments, newComment].sort((a, b) => a.startIndex - b.startIndex)
-    );
+    setComments((prevComments) => {
+      const updated = [...prevComments, newComment].sort((a, b) => a.startIndex - b.startIndex);
+      console.log('Комментарии:', updated);
+      return updated;
+    });
 
     setSelection(null);
     window.getSelection()?.removeAllRanges();
@@ -310,7 +315,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
       const highlightSpan = target.closest(`.${styles.highlightedText}`) as HTMLElement;
 
       if (highlightSpan) {
-        const commentId = highlightSpan.dataset.commentId;
+        const commentId = Number(highlightSpan.dataset.commentId);
         const comment = comments.find((c) => c.id === commentId);
         if (comment) {
           setHoveredComment({

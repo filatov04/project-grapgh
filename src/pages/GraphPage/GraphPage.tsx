@@ -4,7 +4,8 @@ import styles from "./GraphPage.module.css";
 import { NewTripleMenu } from "./NewTriplet";
 import OntologyManager, { type OntologyNode } from "../../shared/types/OntologyManager";
 import PredicateManager from "../../shared/types/PredicateManager";
-import type { RDFNode, RDFLink } from "../../shared/types/graphTypes";
+import type { RDFLink } from "../../shared/types/graphTypes";
+import { postGraph, type GraphData } from "../../shared/api/graphApi";
 import graphData from '../../../public/input.json';
 import NodePopup from "./NodePopup";
 import { EditNode } from "./EditNode";
@@ -19,6 +20,7 @@ const GraphPage: React.FC = () => {
   const [links, setLinks] = useState<RDFLink[]>([]);
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [isSaving, setIsSaving] = useState(false);
 
   
   const updateDataFromManager = useCallback(() => {
@@ -41,6 +43,8 @@ const GraphPage: React.FC = () => {
           type: node.type as NodeType,
           children: []
         });
+        // TODO: сделать запрос на сервер
+        console.log("запрос на сервер при добавлении узла пока не отправляется");
       });
 
       graphData.links.forEach(link => {
@@ -85,6 +89,23 @@ const GraphPage: React.FC = () => {
   }, []);
 
 
+  const handleSaveGraph = async () => {
+    setIsSaving(true);
+    try {
+      const nodesToSave = nodes.map(({ children, ...rest }) => rest);
+      const graphData: GraphData = {
+        nodes: nodesToSave,
+        links: links,
+      };
+      await postGraph(graphData);
+      alert('Граф успешно сохранен!');
+    } catch (error) {
+      console.error('Ошибка при сохранении графа:', error);
+      alert('Не удалось сохранить граф.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
   
  const handleAddTriple = useCallback((
     subjectLabel: string,
@@ -115,7 +136,7 @@ const GraphPage: React.FC = () => {
         type = 'property';
       }
 
-      const typeUpdated = OntologyManager.updateNodeType(object.id, type);
+      const typeUpdated = OntologyManager.updateNodeType(object.id, type as NodeType);
       if (!typeUpdated) {
         console.error("Не удалось изменить тип объекта");
         return false;
@@ -150,7 +171,7 @@ const GraphPage: React.FC = () => {
       if (!hierarchyData) return;
 
       const root = d3.hierarchy(hierarchyData);
-      const treeLayout = d3.tree<RDFNode>()
+      const treeLayout = d3.tree<any>()
         .size([height * 2, width * 0.5])
         .separation((a, b) => 0.8);
 
@@ -168,12 +189,17 @@ const GraphPage: React.FC = () => {
       };
 
       // Создание кнопок
-      const createButton = (yPos: number, text: string, onClick: () => void) => {
+      const createButton = (yPos: number, text: string, onClick: () => void, disabled = false) => {
         const button = svg.append('g')
           .attr("transform", `translate(20,${yPos})`) 
-          .style("cursor", "pointer")
-          .on("click", onClick)
-          .on("mouseover", function() {
+          .style("cursor", disabled ? "not-allowed" : "pointer")
+          .on("click", onClick);
+          
+        if (disabled) {
+          button.style("pointer-events", "none");
+        }
+
+        button.on("mouseover", function() {
             d3.select(this).select("rect").attr("fill", "#c08bdcff");
           })
           .on("mouseout", function() {
@@ -190,18 +216,24 @@ const GraphPage: React.FC = () => {
           .attr("stroke-width", buttonStyle.strokeWidth)
           .attr("filter", "url(#button-shadow)");
 
-        button.append("text")
+        const textElement = button.append("text")
           .attr("x", buttonStyle.width / 2)
           .attr("y", buttonStyle.height / 2 + 5)
           .attr("text-anchor", "middle")
           .attr("fill", "black")
           .attr("font-size", "14px")
-          .attr("font-weight", "500")
-          .text(text);
+          .attr("font-weight", "500");
+          
+        if (isSaving && text === "Сохранить") {
+          textElement.text("Сохранение...");
+        } else {
+          textElement.text(text);
+        }
       };
 
       // Добавление кнопок
       createButton(height - 80, "Создать новый", () => setShowMenu(true));
+      createButton(height - 130, "Сохранить", handleSaveGraph, isSaving);
 
 
       // Добавление тени для кнопок
@@ -231,7 +263,7 @@ const GraphPage: React.FC = () => {
         .enter()
         .append("path")
         .attr("class", styles.link)
-        .attr("d", d3.linkVertical()
+        .attr("d", d3.linkVertical<any>()
           .x(d => d.x!)
           .y(d => d.y!))
         .attr("stroke-width", 1.5)
@@ -261,10 +293,10 @@ const GraphPage: React.FC = () => {
         .data(root.descendants())
         .enter()
         .append("g")
-        .attr("class", d => `${styles.node} ${styles[d.data.type]}`)
-        .attr("transform", d => `translate(${d.x},${d.y})`);
+        .attr("class", (d: any) => `${styles.node} ${styles[d.data.type]}`)
+        .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
 
-      nodeGroups.on("click", function(event, d) {
+      nodeGroups.on("click", function(event, d: any) {
         event.stopPropagation();
         setSelectedNode(d.data);
         setPopupPosition({ x: event.clientX, y: event.clientY });
@@ -278,25 +310,25 @@ const GraphPage: React.FC = () => {
 
       nodeGroups.append("text")
         .attr("dy", ".31em")
-        .attr("x", d => d.children ? -20 : 20)
-        .style("text-anchor", d => d.children ? "end" : "start")
+        .attr("x", (d: any) => d.children ? -20 : 20)
+        .style("text-anchor", (d: any) => d.children ? "end" : "start")
         .style("fill", "#333")
         .style("font-size", "14px")
-        .text(d => d.data.label.length > 20 
+        .text((d: any) => d.data.label.length > 20 
           ? `${d.data.label.substring(0, 20)}...` 
           : d.data.label
         );
 
       // Добавление масштабирования
-      const zoom = d3.zoom()
+      const zoom = d3.zoom<any, any>()
         .scaleExtent([0.3, 3])
         .on("zoom", (event) => {
           g.attr("transform", event.transform);
         });
 
-      svg.call(zoom as any)
+      svg.call(zoom)
         .call(zoom.transform, d3.zoomIdentity.translate(width / 2, 60).scale(0.8));
-    }, [nodes, links, buildTree]);
+    }, [nodes, links, buildTree, isSaving]);
 
 
   useEffect(() => {
@@ -310,7 +342,7 @@ const GraphPage: React.FC = () => {
 
   useEffect(() => {
     renderTree();
-  }, [nodes, links, renderTree]);
+  }, [nodes, links, renderTree, isSaving]);
 
   useEffect(() => {
   const handleClickOutside = (e: MouseEvent) => {
@@ -352,7 +384,7 @@ const GraphPage: React.FC = () => {
               children: []
             };
 
-            OntologyManager.addNode(newNode);
+            OntologyManager.addNode(newNode as any);
             const updatedNodes = OntologyManager.getAllNodes();
             setNodes(updatedNodes);
             console.log('Все узлы после добавления:', updatedNodes);

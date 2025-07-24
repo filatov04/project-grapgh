@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import styles from './GraphPage.module.css';
-import type { RDFNode } from '../../shared/types/graphTypes';
-import OntologyManager from '../../shared/types/OntologyManager';
+import OntologyManager, { type OntologyNode } from '../../shared/types/OntologyManager';
 
 interface EditNodeProps {
   onClose: () => void;
-  currentNode: RDFNode;
-  onUpdate: (node: RDFNode, newLabel: string) => void;
+  currentNode: OntologyNode;
+  onUpdate: (node: OntologyNode, newLabel: string) => void;
 
 }
 

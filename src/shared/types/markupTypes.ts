@@ -1,10 +1,11 @@
 export interface CommentInterface {
-  id: string;
+  id: number;
+  filename: string;
   startIndex: number;
   endIndex: number;
   subject: string;
   predicate: string;
   object: string; // The highlighted text
-  createdAt?: Date;
-  author?: string;
+  createdAt: string;
+  author: string;
 }

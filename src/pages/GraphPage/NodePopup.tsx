@@ -1,6 +1,5 @@
 import React, {useState} from 'react';
 import styles from './GraphPage.module.css';
-import type { RDFNode } from '../../shared/types/graphTypes';
 import OntologyManager, { type OntologyNode } from '../../shared/types/OntologyManager';
 import { NewTripleMenu } from './NewTriplet';
 import PredicateManager from '../../shared/types/PredicateManager';
@@ -63,7 +62,7 @@ const NodePopup: React.FC<{
     return true;
   };
 
-  const handleChangeNodeNome = (node: RDFNode, newLabel: string) => {
+  const handleChangeNodeNome = (node: OntologyNode, newLabel: string) => {
     if (!node){
         console.error("Узел не существует");
         return false;
@@ -92,7 +91,7 @@ const NodePopup: React.FC<{
 
   }
 
-  const handleOpenDeleteDialog = (node: RDFNode) => {
+  const handleOpenDeleteDialog = (node: OntologyNode) => {
     setNodeToDelete(node);
   };
     const triples = OntologyManager.getAllTriplesWithNode(node.label);

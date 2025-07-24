@@ -1,6 +1,5 @@
-import { version } from "react";
 import PredicateManager from "./PredicateManager";
-import type { RDFLink, RDFNode } from "./graphTypes";
+import type { RDFLink } from "./graphTypes";
 
 export type NodeType =  'class' | 'property' | 'literal';
 
