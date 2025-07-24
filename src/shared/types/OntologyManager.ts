@@ -2,13 +2,13 @@ import { version } from "react";
 import PredicateManager from "./PredicateManager";
 import type { RDFLink, RDFNode } from "./graphTypes";
 
+export type NodeType =  'class' | 'property' | 'literal';
+
 export type OntologyNode = {
   id: string;
   label: string;
-  type: 'class' | 'property' | 'literal ';
-  children?: OntologyNode[]; 
-  author: string;
-  version: number;
+  type: NodeType;
+  children?: OntologyNode[];
 };
 
 class OntologyManager {

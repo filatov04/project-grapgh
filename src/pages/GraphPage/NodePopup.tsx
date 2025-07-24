@@ -1,25 +1,25 @@
 import React, {useState} from 'react';
 import styles from './GraphPage.module.css';
 import type { RDFNode } from '../../shared/types/graphTypes';
-import OntologyManager from '../../shared/types/OntologyManager';
+import OntologyManager, { type OntologyNode } from '../../shared/types/OntologyManager';
 import { NewTripleMenu } from './NewTriplet';
 import PredicateManager from '../../shared/types/PredicateManager';
 import { EditNode } from './EditNode';
 import { DeleteNodeMenu } from './DeleteNodeMenu';
 
 const NodePopup: React.FC<{
-  node: RDFNode;
+  node: OntologyNode;
   onClose: () => void;
   position: { x: number; y: number };
   onUpdate: () => void; 
-  setSelectedNode: (node: RDFNode) => void;
+  setSelectedNode: (node: OntologyNode) => void;
 }> = ({ node, position, onClose, onUpdate, setSelectedNode  }) => {
     const [showNewTripleMenu, setShowNewTripleMenu] = useState(false);
     const [showEditNoteMenu, setEditNodeMenu] = useState(false);
     const [predicates, setPredicates] = useState<string[]>([]);
     const [objects, setObjects] = useState<string[]>([]);
 
-    const [nodeToDelete, setNodeToDelete] = useState<RDFNode | null>(null);
+    const [nodeToDelete, setNodeToDelete] = useState<OntologyNode | null>(null);
     
     const updateData = () => {
         setPredicates(OntologyManager.getAvailablePredicates());

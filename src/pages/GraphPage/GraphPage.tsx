@@ -2,22 +2,22 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import * as d3 from "d3";
 import styles from "./GraphPage.module.css";
 import { NewTripleMenu } from "./NewTriplet";
-import OntologyManager from "../../shared/types/OntologyManager";
+import OntologyManager, { type OntologyNode } from "../../shared/types/OntologyManager";
 import PredicateManager from "../../shared/types/PredicateManager";
 import type { RDFNode, RDFLink } from "../../shared/types/graphTypes";
 import graphData from '../../../public/input.json';
 import NodePopup from "./NodePopup";
 import { EditNode } from "./EditNode";
-type NodeType =  'class' | 'property' | 'literal';
+import { type NodeType } from "../../shared/types/OntologyManager";
 
 
 const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [predicates, setPredicates] = useState<string[]>([]);
-  const [nodes, setNodes] = useState<RDFNode[]>([]);
+  const [nodes, setNodes] = useState<OntologyNode[]>([]);
   const [links, setLinks] = useState<RDFLink[]>([]);
-  const [selectedNode, setSelectedNode] = useState<RDFNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
 
   
@@ -50,7 +50,7 @@ const GraphPage: React.FC = () => {
       updateDataFromManager();
     } catch (error) {
       console.error("Error loading graph data: ", error);
-      const fallbackNode = {
+      const fallbackNode: OntologyNode = {
         id: "http://www.w3.org/2000/01/rdf-schema#Class",
         label: "Class",
         type: "class",
@@ -61,8 +61,8 @@ const GraphPage: React.FC = () => {
     }
   }, [updateDataFromManager]);
 
-  const buildTree = useCallback((nodes: RDFNode[], links: RDFLink[]): RDFNode | undefined => {
-    const nodeMap = new Map<string, RDFNode>();
+  const buildTree = useCallback((nodes: OntologyNode[], links: RDFLink[]): OntologyNode | undefined => {
+    const nodeMap = new Map<string, OntologyNode>();
     nodes.forEach(node => nodeMap.set(node.id, {...node, children: [] }));
 
     links.forEach(link => {
@@ -347,7 +347,6 @@ const GraphPage: React.FC = () => {
 
           onAddObject={(objectLabel) => {
             const newNode = {
-              id: OntologyManager.generateNodeId(objectLabel),
               label: objectLabel,
               type: undefined, 
               children: []
