@@ -5,7 +5,7 @@ import React, {
   useEffect,
 } from 'react';
 import type { FC, ChangeEvent, MouseEvent, ReactNode } from 'react';
-import './CommentableText.css';
+import styles from './MarkupEditor.module.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
 import { postMarkup } from '../../shared/api/markupApi';
 import type { CommentInterface } from '../../shared/types/markupTypes';
@@ -44,22 +44,22 @@ const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCan
   };
 
   return (
-    <div className="comment-popup" style={{ top: position.y, left: position.x }}>
-      <div className="comment-popup-selects">
+    <div className={styles.commentPopup} style={{ top: position.y, left: position.x }}>
+      <div className={styles.commentPopupSelects}>
         <label>
           <span>Субъект:</span>
-          <select className='comment-popup-selects-select' id='subject' value={subject} onChange={(e) => setSubject(e.target.value)}>
+          <select className={styles.commentPopupSelectsSelect} id='subject' value={subject} onChange={(e) => setSubject(e.target.value)}>
             {MOCK_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <label>
           <span>Предикат:</span>
-          <select className='comment-popup-selects-select' id='predicate' value={predicate} onChange={(e) => setPredicate(e.target.value)}>
+          <select className={styles.commentPopupSelectsSelect} id='predicate' value={predicate} onChange={(e) => setPredicate(e.target.value)}>
             {MOCK_PREDICATES.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
       </div>
-      <div className="comment-popup-actions">
+      <div className={styles.commentPopupActions}>
         <button onClick={handleSave}>Сохранить</button>
         <button onClick={onCancel}>Отмена</button>
       </div>
@@ -75,7 +75,7 @@ interface CommentTooltipProps {
 
 const CommentTooltip: FC<CommentTooltipProps> = ({ comment, position }) => {
   return (
-    <div className="comment-tooltip" style={{ top: position.y, left: position.x }}>
+    <div className={styles.commentTooltip} style={{ top: position.y, left: position.x }}>
       <div><strong>Субъект:</strong> {comment.subject}</div>
       <div><strong>Предикат:</strong> {comment.predicate}</div>
       <div><strong>Объект:</strong> {comment.object}</div>
@@ -242,7 +242,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
             segments.push(
               <span
                 key={comment.id}
-                className="highlighted-text"
+                className={styles.highlightedText}
                 data-comment-id={comment.id}
               >
                 {nodeText.substring(start, end)}
@@ -307,7 +307,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
     const handleMouseEnter = (event: globalThis.MouseEvent) => {
       const target = event.target as HTMLElement;
-      const highlightSpan = target.closest('.highlighted-text') as HTMLElement;
+      const highlightSpan = target.closest(`.${styles.highlightedText}`) as HTMLElement;
 
       if (highlightSpan) {
         const commentId = highlightSpan.dataset.commentId;
@@ -323,7 +323,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
     const handleMouseLeave = (event: globalThis.MouseEvent) => {
        const target = event.target as HTMLElement;
-       if (target.closest('.highlighted-text')){
+       if (target.closest(`.${styles.highlightedText}`)){
            setHoveredComment(null);
        }
     };
@@ -339,7 +339,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
 
   return (
-    <div className="commentable-container">
+    <div className={styles.commentableContainer}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
         <button
           onClick={handleSaveMarkup}
@@ -360,7 +360,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
           }}
         >
           {isSaving ? (
-            <span className="loader" style={{ width: 24, height: 24, display: 'inline-block', border: '3px solid #fff', borderTop: '3px solid #27ae60', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span className={styles.loader} />
           ) : (
             '💾'
           )}
@@ -372,7 +372,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
       <FileHTMLToString onFileRead={handleFileRead} />
       <div
         ref={textContainerRef}
-        className="text-content"
+        className={styles.textContent}
         onMouseUp={handleMouseUp}
       >
         {renderedHtml}
