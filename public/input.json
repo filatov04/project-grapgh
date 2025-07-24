@@ -14,12 +14,25 @@
       "id": "http://www.w3.org/2002/07/owl#Thing",
       "label": "Thing",
       "type": "class"
+    },
+          
+    {
+      "id": "http://www.w3.org/2000/01/rdf-schema#возраст",
+      "label": "возраст",
+      "type": "property"
     }
+    
   ],
   "links": [
     {
       "source": "http://www.w3.org/2000/01/rdf-schema#Class",
       "target": "http://www.w3.org/2000/01/rdf-schema#Property",
+      "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+    },
+
+    {
+      "source": "http://www.w3.org/2000/01/rdf-schema#Property",
+      "target": "http://www.w3.org/2000/01/rdf-schema#возраст",
       "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
     }
   ]
