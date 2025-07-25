@@ -5,7 +5,7 @@ import { NewTripleMenu } from "./NewTriplet";
 import OntologyManager, { type OntologyNode } from "../../shared/types/OntologyManager";
 import PredicateManager from "../../shared/types/PredicateManager";
 import type { RDFLink } from "../../shared/types/graphTypes";
-import { postGraph, type GraphData } from "../../shared/api/graphApi";
+import { postGraph, type GraphData, getGraph } from "../../shared/api/graphApi";
 import graphData from '../../../public/input.json';
 import NodePopup from "./NodePopup";
 import { EditNode } from "./EditNode";
@@ -32,22 +32,39 @@ const GraphPage: React.FC = () => {
   }, []);
 
   
-  const initializeData = useCallback(() => {
+  const initializeData = useCallback(async () => {
     OntologyManager.clear();
-    
+    let data: GraphData | null = null;
     try {
-      graphData.nodes.forEach(node => {
+      const response = await getGraph();
+      data = response.data;
+      console.log('data from server', data);
+    } catch (e) {
+      console.error('Ошибка при получении graphData с сервера:', e);
+    }
+
+    let sourceData: GraphData;
+    if (!data || !data.nodes || !Array.isArray(data.nodes) || !data.nodes.length || !data.links || !Array.isArray(data.links) || !data.links.length) {
+      // Приводим тип поля type к NodeType
+      sourceData = {
+        nodes: graphData.nodes.map(n => ({ ...n, type: n.type as NodeType })),
+        links: graphData.links
+      };
+    } else {
+      sourceData = data;
+    }
+
+    try {
+      sourceData.nodes.forEach(node => {
         OntologyManager.addNode({
           id: node.id,
           label: node.label,
           type: node.type as NodeType,
           children: []
         });
-        // TODO: сделать запрос на сервер
-        console.log("запрос на сервер при добавлении узла пока не отправляется");
       });
 
-      graphData.links.forEach(link => {
+      sourceData.links.forEach(link => {
         OntologyManager.addLink(link.source, link.target, link.predicate);
       });
 
@@ -259,20 +276,22 @@ const GraphPage: React.FC = () => {
 
       // Отрисовка связей
       g.selectAll(".link")
-        .data(root.links())
+        .data(root.links() as d3.HierarchyPointLink<OntologyNode>[]) // Явно указываем тип
         .enter()
         .append("path")
         .attr("class", styles.link)
-        .attr("d", d3.linkVertical<any>()
+        .attr("d", d3.linkVertical<d3.HierarchyPointLink<OntologyNode>, OntologyNode>()
           .x(d => d.x!)
           .y(d => d.y!))
         .attr("stroke-width", 1.5)
-        .each(function(d) {
-          const midX = (d.source.x! + d.target.x!) / 2;
-          const midY = (d.source.y! + d.target.y!) / 2;
+        .each(function(d: d3.HierarchyPointLink<OntologyNode>) {
+          const source = d.source as d3.HierarchyPointNode<OntologyNode>;
+          const target = d.target as d3.HierarchyPointNode<OntologyNode>;
+          const midX = (source.x + target.x) / 2;
+          const midY = (source.y + target.y) / 2;
           
           const linkData = links.find(l => 
-            l.source === d.source.data.id && l.target === d.target.data.id
+            l.source === source.data.id && l.target === target.data.id
           );
           
           if (linkData) {
@@ -375,6 +394,7 @@ const GraphPage: React.FC = () => {
           onAddPredicate={(pred) => {
             PredicateManager.registerPredicate(pred);
             setPredicates(OntologyManager.getAvailablePredicates());
+            // TODO: добавить вызов метода для обновления данных
           }}
 
           onAddObject={(objectLabel) => {
