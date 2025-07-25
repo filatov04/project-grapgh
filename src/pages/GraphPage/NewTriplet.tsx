@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import styles from './GraphPage.module.css';
 import OntologyManager from '../../shared/types/OntologyManager';
 import type { OntologyNode } from '../../shared/types/NodeManager';
@@ -38,6 +38,79 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
   const [localPredicates, setLocalPredicates] = useState(initialPredicates);
   const [localObjects, setLocalObjects] = useState(initialObjects);
 
+  // Состояния для поиска
+  const [subjectSearch, setSubjectSearch] = useState('');
+  const [predicateSearch, setPredicateSearch] = useState('');
+  const [objectSearch, setObjectSearch] = useState('');
+
+  // Фильтрация элементов
+  const filteredSubjects = useMemo(() => {
+    return subjects.filter(subject =>
+      subject.toLowerCase().includes(subjectSearch.toLowerCase())
+    );
+  }, [subjects, subjectSearch]);
+
+  const filteredPredicates = useMemo(() => {
+    return localPredicates.filter(predicate =>
+      predicate.toLowerCase().includes(predicateSearch.toLowerCase())
+    );
+  }, [localPredicates, predicateSearch]);
+
+  const filteredObjects = useMemo(() => {
+    return localObjects.filter(object =>
+      object.toLowerCase().includes(objectSearch.toLowerCase())
+    );
+  }, [localObjects, objectSearch]);
+
+  // Обработчики кликов
+  const handleSubjectClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDropDownSubOpen(prev => !prev);
+    setSubjectSearch('');
+    if (!isDropdownSubOpen) {
+      setIsDropDownOpen(false);
+      setIsDropDownObjOpen(false);
+    }
+  };
+
+  const handlePredicateClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDropDownOpen(prev => !prev);
+    setPredicateSearch('');
+    if (!isDropdownOpen) {
+      setIsDropDownSubOpen(false);
+      setIsDropDownObjOpen(false);
+    }
+  };
+
+  const handleObjectClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDropDownObjOpen(prev => !prev);
+    setObjectSearch('');
+    if (!isDropdownObjOpen) {
+      setIsDropDownSubOpen(false);
+      setIsDropDownOpen(false);
+    }
+  };
+
+  // Закрытие при клике вне компонента
+useEffect(() => {
+  const handleClickOutside = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    // Исправленное условие - добавлены закрывающие скобки и точка с запятой
+    if (!target.closest(`.${styles.scrollableDropdownMenu}`) && 
+        !target.closest(`.${styles.predicateDropdownTrigger}`)) {
+      setIsDropDownSubOpen(false);
+      setIsDropDownOpen(false);
+      setIsDropDownObjOpen(false);
+    }
+  };
+
+  document.addEventListener('click', handleClickOutside);
+  return () => document.removeEventListener('click', handleClickOutside);
+}, []);
+
+  // Остальные обработчики
   const handleSubmitPredicate = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -54,56 +127,54 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
     const updatedPredicates = [...localPredicates, newPredicate];
     setLocalPredicates(updatedPredicates);
     onAddPredicate(newPredicate);
-    (async () => {
-      try {
-        const response = await postPredicate(newPredicate);
-        console.log('response from server', response);
-      } catch (error) {
-        console.error('Ошибка при добавлении объекта:', error);
-      }
-    })();
+    // (async () => {
+    //   try {
+    //     const response = await postPredicate(newPredicate);
+    //     console.log('response from server', response);
+    //   } catch (error) {
+    //     console.error('Ошибка при добавлении объекта:', error);
+    //   }
+    // })();
     setNewPredicate('');
     setError('');
     setSelectedPredicate(newPredicate);
   };
 
   const handleSubmitObject = (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!newObject.trim()) {
-    setError('Введите название объекта');
-    return;
-  }
-
-  try {
-    // Вызываем колбэк из пропсов (он добавит узел через OntologyManager)
-    const addedNode = onAddObject(newObject.trim());
+    e.preventDefault();
     
-    if (!addedNode) {
-      throw new Error('Не удалось добавить узел');
+    if (!newObject.trim()) {
+      setError('Введите название объекта');
+      return;
     }
 
-    // Обновляем локальное состояние
-    setLocalObjects(prev => [...prev, addedNode.label]);
-    // Запрос к серверу для добавления объекта
-    (async () => {
-      try {
-        const response = await postObject(newObject);
-        console.log('response from server', response);
-      } catch (error) {
-        console.error('Ошибка при добавлении объекта:', error);
+    try {
+      const addedNode = onAddObject(newObject.trim());
+      
+      if (!addedNode) {
+        throw new Error('Не удалось добавить узел');
       }
-    })();
-    setNewObject('');
-    setError('');
-    setSelectedObject(addedNode.label);
-    
-    console.log('Добавленный узел:', addedNode);
-  } catch (error) {
-    console.error('Ошибка добавления:', error);
-    setError('Ошибка при создании объекта');
-  }
-};
+
+      setLocalObjects(prev => [...prev, addedNode.label]);
+      // (async () => {
+      //   try {
+      //     const response = await postObject(newObject);
+      //     console.log('response from server', response);
+      //   } catch (error) {
+      //     console.error('Ошибка при добавлении объекта:', error);
+      //   }
+      // })();
+      setNewObject('');
+      setError('');
+      setSelectedObject(addedNode.label);
+      
+      console.log('Добавленный узел:', addedNode);
+    } catch (error) {
+      console.error('Ошибка добавления:', error);
+      setError('Ошибка при создании объекта');
+    }
+  };
+
   const handlePredicateSelect = (predicate: string) => {
     setSelectedPredicate(predicate);
     setIsDropDownOpen(false);
@@ -148,7 +219,8 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                 <div className={styles.predicateDropdownContainer}>
                   <div
                     className={styles.predicateDropdownTrigger}
-                    onClick={() => setIsDropDownSubOpen(!isDropdownSubOpen)}
+                    onClick={handleSubjectClick}
+                    tabIndex={0}
                   >
                     {selectedSubject || 'Выберите субъект'}
                     <span className={styles.arrow}>
@@ -158,7 +230,16 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
 
                   {isDropdownSubOpen && (
                     <div className={styles.scrollableDropdownMenu}>
-                      {subjects.map((subject) => (
+                      <input
+                        type="text"
+                        placeholder="Поиск субъекта..."
+                        className={styles.searchInput}
+                        value={subjectSearch}
+                        onChange={(e) => setSubjectSearch(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                      {filteredSubjects.map((subject) => (
                         <div
                           key={subject}
                           className={`${styles.predicateOption} ${
@@ -169,6 +250,9 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                           {subject}
                         </div>
                       ))}
+                      {filteredSubjects.length === 0 && (
+                        <div className={styles.noItems}>Ничего не найдено</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -180,7 +264,8 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                 <div className={styles.predicateDropdownContainer}>
                   <div
                     className={styles.predicateDropdownTrigger}
-                    onClick={() => setIsDropDownOpen(!isDropdownOpen)}
+                    onClick={handlePredicateClick}
+                    tabIndex={0}
                   >
                     {selectedPredicate || 'Выберите предикат'}
                     <span className={styles.arrow}>
@@ -190,7 +275,16 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
 
                   {isDropdownOpen && (
                     <div className={styles.scrollableDropdownMenu}>
-                      {localPredicates.map((predicate) => (
+                      <input
+                        type="text"
+                        placeholder="Поиск предиката..."
+                        className={styles.searchInput}
+                        value={predicateSearch}
+                        onChange={(e) => setPredicateSearch(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                      {filteredPredicates.map((predicate) => (
                         <div
                           key={predicate}
                           className={`${styles.predicateOption} ${
@@ -201,6 +295,9 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                           {predicate}
                         </div>
                       ))}
+                      {filteredPredicates.length === 0 && (
+                        <div className={styles.noItems}>Ничего не найдено</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -229,7 +326,8 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
                 <div className={styles.predicateDropdownContainer}>
                   <div
                     className={styles.predicateDropdownTrigger}
-                    onClick={() => setIsDropDownObjOpen(!isDropdownObjOpen)}
+                    onClick={handleObjectClick}
+                    tabIndex={0}
                   >
                     {selectedObject || 'Выберите объект'}
                     <span className={styles.arrow}>
@@ -239,27 +337,33 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
 
                   {isDropdownObjOpen && (
                     <div className={styles.scrollableDropdownMenu}>
-                      <div className={styles.dropdownContent}>
-
-                        {localObjects.length > 0 ? (
-                          localObjects.map((object) => (
-                            <div
-                              key={object}
-                              className={`${styles.predicateOption} ${
-                                selectedObject === object ? styles.selected : ''
-                              }`}
-                              onClick={() => {
-                                handleObjectSelect(object);
-                                setIsDropDownObjOpen(false);
-                              }}
-                            >
-                              {object}
-                            </div>
-                          ))
-                        ) : (
-                          <div className={styles.noItems}>Нет доступных объектов</div>
-                        )}
-                      </div>
+                      <input
+                        type="text"
+                        placeholder="Поиск объекта..."
+                        className={styles.searchInput}
+                        value={objectSearch}
+                        onChange={(e) => setObjectSearch(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                      {filteredObjects.length > 0 ? (
+                        filteredObjects.map((object) => (
+                          <div
+                            key={object}
+                            className={`${styles.predicateOption} ${
+                              selectedObject === object ? styles.selected : ''
+                            }`}
+                            onClick={() => {
+                              handleObjectSelect(object);
+                              setIsDropDownObjOpen(false);
+                            }}
+                          >
+                            {object}
+                          </div>
+                        ))
+                      ) : (
+                        <div className={styles.noItems}>Ничего не найдено</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -286,9 +390,7 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
 
           {error && <div className={styles.error}>{error}</div>}
 
-          
-        </div>
-        <button 
+          <button 
             onClick={handleApply}
             className={styles.addButton}
             aria-label="Применить"
@@ -296,6 +398,7 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
           >
             Применить
           </button>
+        </div>
       </div>
     </div>
   );

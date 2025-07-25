@@ -9,6 +9,7 @@ import styles from './MarkupEditor.module.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
 import { getMarkup, postMarkup } from '../../shared/api/markupApi';
 import { getAllObjects, getAllPredicates } from '../../shared/api/generalApi';
+import { getGraph } from '../../shared/api/graphApi';
 import type { CommentInterface } from '../../shared/types/markupTypes';
 
 const MOCK_SUBJECTS = ['Субъект 1', 'Субъект 2', 'Субъект 3', 'Другой Субъект'];
@@ -113,16 +114,17 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
     setSelection(null);
     setHoveredComment(null);
 
-    // Загружаем объекты/субъекты и предикаты с сервера
+    // Загружаем subjects и predicates через getGraph
     try {
-      const [objectsRes, predicatesRes] = await Promise.all([
-        getAllObjects(),
-        getAllPredicates()
-      ]);
-      const loadedSubjects = objectsRes.data;
-      const loadedPredicates = predicatesRes.data;
-      setSubjects(Array.isArray(loadedSubjects) && loadedSubjects.length > 0 ? loadedSubjects : MOCK_SUBJECTS);
-      setPredicates(Array.isArray(loadedPredicates) && loadedPredicates.length > 0 ? loadedPredicates : MOCK_PREDICATES);
+      const { data } = await getGraph();
+      const loadedSubjects = Array.isArray(data.nodes) ? data.nodes.map((n: any) => n.label) : [];
+      const loadedPredicates = Array.isArray(data.links) ? data.links.map((l: any) => l.predicate) : [];
+      setSubjects(loadedSubjects.length > 0 ? loadedSubjects : MOCK_SUBJECTS);
+      setPredicates(
+        loadedPredicates.length > 0
+          ? Array.from(new Set(loadedPredicates))
+          : MOCK_PREDICATES
+      );
     } catch (e) {
       setSubjects(MOCK_SUBJECTS);
       setPredicates(MOCK_PREDICATES);

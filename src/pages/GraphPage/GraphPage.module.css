@@ -207,8 +207,8 @@
   border-radius: 4px;
   transition: background-color 0.2s ease;
   position: absolute;
-  right: 20px;
-  bottom: 20px;
+  right: 0px;
+  bottom: -45px;
   z-index: 2;
 }
 

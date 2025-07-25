@@ -395,7 +395,7 @@ const GraphPage: React.FC = () => {
           onAddPredicate={(pred) => {
             PredicateManager.registerPredicate(pred);
             setPredicates(OntologyManager.getAvailablePredicates());
-            // TODO: добавить вызов метода для обновления данных
+            // TODO: добавить вызов метода для обновления данных (не надо)
           }}
 
           onAddObject={(objectLabel) => {
