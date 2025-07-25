@@ -7,7 +7,7 @@ import React, {
 import type { FC, ReactNode } from 'react';
 import styles from './MarkupEditor.module.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
-import { postMarkup } from '../../shared/api/markupApi';
+import { getMarkup, postMarkup } from '../../shared/api/markupApi';
 import type { CommentInterface } from '../../shared/types/markupTypes';
 
 const MOCK_SUBJECTS = ['Субъект 1', 'Субъект 2', 'Субъект 3', 'Другой Субъект'];
@@ -93,13 +93,22 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const textContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleFileRead = (content: string) => {
+  const handleFileRead = async (content: string) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
     setRawHtml(doc.body.innerHTML);
     setComments([]);
     setSelection(null);
     setHoveredComment(null);
+
+    try {
+      const { data: loadedComments } = await getMarkup('testHash');
+      const sortedComments = loadedComments.sort((a, b) => a.startIndex - b.startIndex);
+      setComments(sortedComments);
+      console.log('Загруженные комментарии:', sortedComments);
+    } catch (error) {
+      console.error('Не удалось загрузить разметку:', error);
+    }
   };
 
   const handleMouseUp = (): void => {
@@ -184,7 +193,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
       subject,
       predicate,
       object: objectText,
-      filename: 'test.html',
+      filename: 'testHash',
       createdAt: new Date().toISOString(),
       author: 'test',
     };
@@ -209,6 +218,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
     } catch (e) {
       setSaveSuccess(false);
       alert('Ошибка при сохранении разметки');
+      console.error('Ошибка при сохранении разметки:', e);
     } finally {
       setIsSaving(false);
     }

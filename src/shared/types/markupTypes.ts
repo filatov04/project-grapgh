@@ -5,7 +5,7 @@ export interface CommentInterface {
   endIndex: number;
   subject: string;
   predicate: string;
-  object: string; // The highlighted text
+  object: string;
   createdAt: string;
   author: string;
 }
