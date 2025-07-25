@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styles from './GraphPage.module.css';
 import OntologyManager from '../../shared/types/OntologyManager';
 import type { OntologyNode } from '../../shared/types/NodeManager';
+import { postObject, postPredicate } from '../../shared/api/generalApi';
 
 interface NewTripleMenuProps {
   onClose: () => void;
@@ -53,6 +54,14 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
     const updatedPredicates = [...localPredicates, newPredicate];
     setLocalPredicates(updatedPredicates);
     onAddPredicate(newPredicate);
+    (async () => {
+      try {
+        const response = await postPredicate(newPredicate);
+        console.log('response from server', response);
+      } catch (error) {
+        console.error('Ошибка при добавлении объекта:', error);
+      }
+    })();
     setNewPredicate('');
     setError('');
     setSelectedPredicate(newPredicate);
@@ -76,6 +85,15 @@ export const NewTripleMenu: React.FC<NewTripleMenuProps> = ({
 
     // Обновляем локальное состояние
     setLocalObjects(prev => [...prev, addedNode.label]);
+    // Запрос к серверу для добавления объекта
+    (async () => {
+      try {
+        const response = await postObject(newObject);
+        console.log('response from server', response);
+      } catch (error) {
+        console.error('Ошибка при добавлении объекта:', error);
+      }
+    })();
     setNewObject('');
     setError('');
     setSelectedObject(addedNode.label);

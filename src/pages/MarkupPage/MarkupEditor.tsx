@@ -8,6 +8,7 @@ import type { FC, ReactNode } from 'react';
 import styles from './MarkupEditor.module.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
 import { getMarkup, postMarkup } from '../../shared/api/markupApi';
+import { getAllObjects, getAllPredicates } from '../../shared/api/generalApi';
 import type { CommentInterface } from '../../shared/types/markupTypes';
 
 const MOCK_SUBJECTS = ['Субъект 1', 'Субъект 2', 'Субъект 3', 'Другой Субъект'];
@@ -30,11 +31,20 @@ interface CommentInputPopupProps {
   position: { x: number; y: number };
   onSave: (subject: string, predicate: string) => void;
   onCancel: () => void;
+  subjects: string[];
+  predicates: string[];
 }
 
-const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCancel }) => {
-  const [subject, setSubject] = useState<string>(MOCK_SUBJECTS[0]);
-  const [predicate, setPredicate] = useState<string>(MOCK_PREDICATES[0]);
+const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCancel, subjects, predicates }) => {
+  const [subject, setSubject] = useState<string>(subjects[0] || '');
+  const [predicate, setPredicate] = useState<string>(predicates[0] || '');
+
+  useEffect(() => {
+    setSubject(subjects[0] || '');
+  }, [subjects]);
+  useEffect(() => {
+    setPredicate(predicates[0] || '');
+  }, [predicates]);
 
   const handleSave = () => {
     if (subject && predicate) {
@@ -48,13 +58,13 @@ const CommentInputPopup: FC<CommentInputPopupProps> = ({ position, onSave, onCan
         <label>
           <span>Субъект:</span>
           <select className={styles.commentPopupSelectsSelect} id='subject' value={subject} onChange={(e) => setSubject(e.target.value)}>
-            {MOCK_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+            {subjects.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <label>
           <span>Предикат:</span>
           <select className={styles.commentPopupSelectsSelect} id='predicate' value={predicate} onChange={(e) => setPredicate(e.target.value)}>
-            {MOCK_PREDICATES.map(p => <option key={p} value={p}>{p}</option>)}
+            {predicates.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
       </div>
@@ -91,6 +101,8 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
   const [rawHtml, setRawHtml] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [subjects, setSubjects] = useState<string[]>(MOCK_SUBJECTS);
+  const [predicates, setPredicates] = useState<string[]>(MOCK_PREDICATES);
   const textContainerRef = useRef<HTMLDivElement>(null);
 
   const handleFileRead = async (content: string) => {
@@ -100,6 +112,21 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
     setComments([]);
     setSelection(null);
     setHoveredComment(null);
+
+    // Загружаем объекты/субъекты и предикаты с сервера
+    try {
+      const [objectsRes, predicatesRes] = await Promise.all([
+        getAllObjects(),
+        getAllPredicates()
+      ]);
+      const loadedSubjects = objectsRes.data;
+      const loadedPredicates = predicatesRes.data;
+      setSubjects(Array.isArray(loadedSubjects) && loadedSubjects.length > 0 ? loadedSubjects : MOCK_SUBJECTS);
+      setPredicates(Array.isArray(loadedPredicates) && loadedPredicates.length > 0 ? loadedPredicates : MOCK_PREDICATES);
+    } catch (e) {
+      setSubjects(MOCK_SUBJECTS);
+      setPredicates(MOCK_PREDICATES);
+    }
 
     try {
       const { data: loadedComments } = await getMarkup('testHash');
@@ -401,6 +428,8 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
           }}
           onSave={handleSaveComment}
           onCancel={() => setSelection(null)}
+          subjects={subjects}
+          predicates={predicates}
         />
       )}
 

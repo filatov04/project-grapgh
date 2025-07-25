@@ -12,10 +12,6 @@ const getAllSubjects = async () => {
   return api.get<string[]>('/subjects');
 }
 
-const postSubject = async (subject: string) => {
-  return api.post('/subjects', { subject });
-}
-
 const postPredicate = async (predicate: string) => {
   return api.post('/predicates', { predicate });
 }
@@ -24,4 +20,4 @@ const postObject = async (object: string) => {
   return api.post('/objects', { object });
 }
 
-export { getAllObjects, getAllPredicates, getAllSubjects, postSubject, postPredicate, postObject };
+export { getAllObjects, getAllPredicates, getAllSubjects, postPredicate, postObject };

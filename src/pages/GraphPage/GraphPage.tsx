@@ -10,6 +10,7 @@ import graphData from '../../../public/input.json';
 import NodePopup from "./NodePopup";
 import { EditNode } from "./EditNode";
 import { type NodeType } from "../../shared/types/OntologyManager";
+import { postObject } from "../../shared/api/generalApi";
 
 
 const GraphPage: React.FC = () => {
@@ -403,10 +404,12 @@ const GraphPage: React.FC = () => {
               type: undefined, 
               children: []
             };
-
+            
             OntologyManager.addNode(newNode as any);
             const updatedNodes = OntologyManager.getAllNodes();
             setNodes(updatedNodes);
+            // Запрос на сервер для обновления данных
+          // TODO: добавить вызов метода для обновления данных
             console.log('Все узлы после добавления:', updatedNodes);
             return newNode;
            }}
