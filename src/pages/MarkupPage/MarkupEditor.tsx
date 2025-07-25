@@ -384,36 +384,40 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
   return (
     <div className={styles.commentableContainer}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-        <button
-          onClick={handleSaveMarkup}
-          disabled={isSaving}
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 12,
-            background: '#27ae60',
-            color: 'white',
-            border: 'none',
-            fontSize: 24,
-            fontWeight: 'bold',
-            cursor: isSaving ? 'not-allowed' : 'pointer',
-            marginRight: 16,
-            position: 'relative',
-            transition: 'background 0.2s',
-          }}
-        >
-          {isSaving ? (
-            <span className={styles.loader} />
-          ) : (
-            '💾'
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, marginTop: 16 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <FileHTMLToString onFileRead={handleFileRead} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <button
+            onClick={handleSaveMarkup}
+            disabled={isSaving}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              background: '#27ae60',
+              color: 'white',
+              border: 'none',
+              fontSize: 24,
+              fontWeight: 'bold',
+              cursor: isSaving ? 'not-allowed' : 'pointer',
+              marginRight: 0,
+              position: 'relative',
+              transition: 'background 0.2s',
+            }}
+          >
+            {isSaving ? (
+              <span className={styles.loader} />
+            ) : (
+              '💾'
+            )}
+          </button>
+          {saveSuccess && (
+            <span style={{ color: '#27ae60', fontWeight: 'bold', fontSize: 18, marginTop: 8 }}>✔ Разметка успешно сохранена</span>
           )}
-        </button>
-        {saveSuccess && (
-          <span style={{ color: '#27ae60', fontWeight: 'bold', fontSize: 18 }}>✔ Разметка успешно сохранена</span>
-        )}
+        </div>
       </div>
-      <FileHTMLToString onFileRead={handleFileRead} />
       <div
         ref={textContainerRef}
         className={styles.textContent}
