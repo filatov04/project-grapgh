@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import styles from './GraphPage.module.css';
-import OntologyManager, { type OntologyNode } from '../../shared/types/OntologyManager';
+import { type OntologyNode } from '../../shared/types/OntologyManager';
 
 
 interface DeleteNodeMenuProps {

@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import styles from './GraphPage.module.css';
-import OntologyManager from '../../shared/types/OntologyManager';
 import type { OntologyNode } from '../../shared/types/NodeManager';
-import { postObject, postPredicate } from '../../shared/api/generalApi';
 
 interface NewTripleMenuProps {
   onClose: () => void;

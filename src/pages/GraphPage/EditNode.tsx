@@ -27,7 +27,7 @@ const triples = OntologyManager.getAllTriplesWithNode(currentNode.label);
     //onClose();
   };
 
-const handleSubmitTriple = (e: React.FormEvent) => {
+const handleSubmitTriple = () => {
     // e.preventDefault();
     // const updatedTriple = ;
     // onUpdate(updatedNode);

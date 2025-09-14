@@ -8,13 +8,13 @@ import type { RDFLink } from "../../shared/types/graphTypes";
 import { postGraph, type GraphData, getGraph } from "../../shared/api/graphApi";
 import graphData from '../../../public/input.json';
 import NodePopup from "./NodePopup";
-import { EditNode } from "./EditNode";
 import { type NodeType } from "../../shared/types/OntologyManager";
-import { postObject } from "../../shared/api/generalApi";
+
 
 
 const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [predicates, setPredicates] = useState<string[]>([]);
   const [nodes, setNodes] = useState<OntologyNode[]>([]);
@@ -22,6 +22,7 @@ const GraphPage: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [isSaving, setIsSaving] = useState(false);
+  
 
   
   const updateDataFromManager = useCallback(() => {
@@ -32,8 +33,115 @@ const GraphPage: React.FC = () => {
     setPredicates(OntologyManager.getAvailablePredicates()); // а это список уникальных
   }, []);
 
-  
-  const initializeData = useCallback(async () => {
+  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const jsonData = JSON.parse(content);
+        
+        // Валидация структуры файла
+        if (!jsonData.nodes || !jsonData.links) {
+          alert("Неверный формат файла. Ожидаются поля nodes и links.");
+          return;
+        }
+
+        // Очищаем текущие данные
+        OntologyManager.clear();
+
+        // Загружаем новые данные
+        jsonData.nodes.forEach((node: any) => {
+          OntologyManager.addNode({
+            id: node.id,
+            label: node.label,
+            type: node.type as NodeType,
+            children: []
+          });
+        });
+
+        jsonData.links.forEach((link: any) => {
+          OntologyManager.addLink(link.source, link.target, link.predicate);
+        });
+
+        updateDataFromManager();
+        alert("Граф успешно загружен из файла!");
+
+        // Очищаем input для возможности загрузки того же файла снова
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      } catch (error) {
+        console.error("Ошибка при чтении файла:", error);
+        alert("Не удалось прочитать файл. Проверьте формат JSON.");
+      }
+    };
+    reader.readAsText(file);
+  }, [updateDataFromManager]);
+
+   const handleUploadClick = useCallback(() => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, []);
+
+
+
+
+  // const initializeData = useCallback(async () => {
+  //   OntologyManager.clear();
+  //   let data: GraphData | null = null;
+  //   try {
+  //     const response = await getGraph();
+  //     data = response.data;
+  //     console.log('data from server', data);
+  //   } catch (e) {
+  //     console.error('Ошибка при получении graphData с сервера:', e);
+  //   }
+
+  //   let sourceData: GraphData;
+  //   if (!data || !data.nodes || !Array.isArray(data.nodes) || !data.nodes.length || !data.links || !Array.isArray(data.links) || !data.links.length) {
+  //     // Приводим тип поля type к NodeType
+  //     sourceData = {
+  //       nodes: graphData.nodes.map(n => ({ ...n, type: n.type as NodeType })),
+  //       links: graphData.links
+  //     };
+  //   } else {
+  //     sourceData = data;
+  //   }
+
+  //   try {
+  //     sourceData.nodes.forEach(node => {
+  //       OntologyManager.addNode({
+  //         id: node.id,
+  //         label: node.label,
+  //         type: node.type as NodeType,
+  //         children: []
+  //       });
+  //     });
+
+  //     sourceData.links.forEach(link => {
+  //       OntologyManager.addLink(link.source, link.target, link.predicate);
+  //     });
+
+  //     updateDataFromManager();
+  //   } catch (error) {
+  //     console.error("Error loading graph data: ", error);
+  //     const fallbackNode: OntologyNode = {
+  //       id: "http://www.w3.org/2000/01/rdf-schema#Class",
+  //       label: "Class",
+  //       type: "class",
+  //       children: [],
+  //     };
+  //     OntologyManager.addNode(fallbackNode);
+  //     updateDataFromManager();
+  //   }
+  // }, [updateDataFromManager]);
+
+
+ const initializeData = useCallback(async () => {
     OntologyManager.clear();
     let data: GraphData | null = null;
     try {
@@ -46,7 +154,6 @@ const GraphPage: React.FC = () => {
 
     let sourceData: GraphData;
     if (!data || !data.nodes || !Array.isArray(data.nodes) || !data.nodes.length || !data.links || !Array.isArray(data.links) || !data.links.length) {
-      // Приводим тип поля type к NodeType
       sourceData = {
         nodes: graphData.nodes.map(n => ({ ...n, type: n.type as NodeType })),
         links: graphData.links
@@ -82,6 +189,7 @@ const GraphPage: React.FC = () => {
       updateDataFromManager();
     }
   }, [updateDataFromManager]);
+
 
   const buildTree = useCallback((nodes: OntologyNode[], links: RDFLink[]): OntologyNode | undefined => {
     const nodeMap = new Map<string, OntologyNode>();
@@ -252,7 +360,7 @@ const GraphPage: React.FC = () => {
       // Добавление кнопок
       createButton(height - 80, "Создать новый", () => setShowMenu(true));
       createButton(height - 130, "Сохранить", handleSaveGraph, isSaving);
-
+      createButton(height - 180, "Загрузить из файла", handleUploadClick);
 
       // Добавление тени для кнопок
       const defs = svg.append("defs");
@@ -281,7 +389,7 @@ const GraphPage: React.FC = () => {
         .enter()
         .append("path")
         .attr("class", styles.link)
-        .attr("d", d3.linkVertical<d3.HierarchyPointLink<OntologyNode>, OntologyNode>()
+        .attr("d", d3.linkVertical<any, any>()
           .x(d => d.x!)
           .y(d => d.y!))
         .attr("stroke-width", 1.5)
@@ -348,7 +456,7 @@ const GraphPage: React.FC = () => {
 
       svg.call(zoom)
         .call(zoom.transform, d3.zoomIdentity.translate(width / 2, 60).scale(0.8));
-    }, [nodes, links, buildTree, isSaving]);
+    }, [nodes, links, buildTree, isSaving, handleUploadClick]);
 
 
   useEffect(() => {
@@ -377,6 +485,13 @@ const GraphPage: React.FC = () => {
 
   return (
     <div className={styles["graph-page"]}>
+        <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept=".json,application/json"
+        style={{ display: 'none' }}
+      />
       <div className={styles["graph-page__content"]}>
         <svg
           ref={svgRef}

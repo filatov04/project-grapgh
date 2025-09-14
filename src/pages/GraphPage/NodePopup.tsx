@@ -12,7 +12,7 @@ const NodePopup: React.FC<{
   position: { x: number; y: number };
   onUpdate: () => void; 
   setSelectedNode: (node: OntologyNode) => void;
-}> = ({ node, position, onClose, onUpdate, setSelectedNode  }) => {
+}> = ({ node, position, onUpdate, setSelectedNode  }) => {
     const [showNewTripleMenu, setShowNewTripleMenu] = useState(false);
     const [showEditNoteMenu, setEditNodeMenu] = useState(false);
     const [predicates, setPredicates] = useState<string[]>([]);
