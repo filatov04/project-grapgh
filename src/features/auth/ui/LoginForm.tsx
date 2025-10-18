@@ -25,7 +25,7 @@ export const LoginForm = ({ onSubmit, isLoading = false }: LoginFormProps) => {
 
     try {
       await onSubmit({ email, password });
-    } catch (err) {
+    } catch {
       setError('Ошибка входа. Проверьте email и пароль');
     }
   };

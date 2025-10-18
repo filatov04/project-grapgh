@@ -1,19 +1,31 @@
 import type { User } from '../../../shared/types/authTypes';
 
-const TOKEN_KEY = 'auth_token';
+const ACCESS_TOKEN_KEY = 'access_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'user_data';
 
 export const userModel = {
-  saveToken: (token: string) => {
-    localStorage.setItem(TOKEN_KEY, token);
+  saveTokens: (accessToken: string, refreshToken: string) => {
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   },
 
+  getAccessToken: (): string | null => {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  },
+
+  getRefreshToken: (): string | null => {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  },
+
+  // Для обратной совместимости
   getToken: (): string | null => {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
   },
 
-  removeToken: () => {
-    localStorage.removeItem(TOKEN_KEY);
+  removeTokens: () => {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
   },
 
   saveUser: (user: User) => {
@@ -30,7 +42,8 @@ export const userModel = {
   },
 
   clearAuth: () => {
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   },
 };

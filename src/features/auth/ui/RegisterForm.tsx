@@ -37,8 +37,13 @@ export const RegisterForm = ({ onSubmit, isLoading = false }: RegisterFormProps)
     }
 
     try {
-      await onSubmit({ firstName, lastName, email, password });
-    } catch (err) {
+      await onSubmit({ 
+        first_name: firstName, 
+        last_name: lastName, 
+        email, 
+        password 
+      });
+    } catch {
       setError('Ошибка регистрации. Возможно, пользователь уже существует');
     }
   };

@@ -1,21 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { RegisterForm } from '../../features/auth';
 import { authApi } from '../../shared/api';
-import { userModel } from '../../entities/user';
+import { useAuth } from '../../app/providers';
 import type { RegisterRequest } from '../../shared/types/authTypes';
 import styles from './RegisterPage.module.css';
 
 export const RegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
+
+  // Если пользователь уже авторизован, перенаправляем на главную
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleRegister = async (data: RegisterRequest) => {
     setIsLoading(true);
     try {
       const response = await authApi.register(data);
-      userModel.saveToken(response.data.token);
-      userModel.saveUser(response.data.user);
+      const { access_token, refresh_token } = response.data;
+      
+      // Создаем объект пользователя из данных регистрации
+      const user = {
+        id: 0,
+        email: data.email,
+        first_name: data.first_name,
+        last_name: data.last_name
+      };
+      
+      // Используем функцию login из AuthProvider для обновления состояния
+      login(user, access_token, refresh_token);
+      
       navigate('/');
     } catch (error) {
       console.error('Registration error:', error);

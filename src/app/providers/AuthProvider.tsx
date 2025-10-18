@@ -9,12 +9,13 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (user: User, token: string) => void;
+  login: (user: User, accessToken: string, refreshToken: string) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -33,22 +34,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = userModel.getToken();
+      const token = userModel.getAccessToken();
       const savedUser = userModel.getUser();
 
       if (token && savedUser) {
         // Добавляем токен к каждому запросу
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
-        // Проверяем валидность токена
-        try {
-          const response = await authApi.getCurrentUser();
-          setUser(response.data.user);
-        } catch (error) {
-          // Токен невалиден, очищаем данные
-          userModel.clearAuth();
-          delete api.defaults.headers.common['Authorization'];
-        }
+        // Используем сохраненные данные пользователя
+        // Backend не предоставляет endpoint /auth/me, поэтому используем локальные данные
+        setUser(savedUser);
       }
       
       setIsLoading(false);
@@ -57,16 +52,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     initAuth();
   }, []);
 
-  const login = (user: User, token: string) => {
+  const login = (user: User, accessToken: string, refreshToken: string) => {
     setUser(user);
     userModel.saveUser(user);
-    userModel.saveToken(token);
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    userModel.saveTokens(accessToken, refreshToken);
+    api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
   };
 
   const logout = async () => {
     try {
-      await authApi.logout();
+      const refreshToken = userModel.getRefreshToken();
+      if (refreshToken) {
+        await authApi.logout(refreshToken);
+      }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {

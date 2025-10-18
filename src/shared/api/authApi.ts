@@ -10,12 +10,12 @@ export const authApi = {
     return api.post<AuthResponse>('/auth/register', data);
   },
 
-  logout: async () => {
-    return api.post('/auth/logout');
+  logout: async (refreshToken: string) => {
+    return api.post('/auth/logout', { refresh_token: refreshToken });
   },
 
-  getCurrentUser: async () => {
-    return api.get<AuthResponse>('/auth/me');
+  refresh: async (refreshToken: string) => {
+    return api.post<AuthResponse>('/auth/refresh', { refresh_token: refreshToken });
   },
 };
 
