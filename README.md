@@ -1,131 +1,149 @@
-# Project Graph - RDF Graph Visualization
+# CompetencyGraph
 
-Приложение для визуализации и работы с RDF-графами с возможностью разметки и авторизацией пользователей.
+Единый контейнер для приложения CompetencyGraph, содержащий Frontend (React + Vite) и Backend (FastAPI + Python).
 
-## Установка и запуск
+## Архитектура
 
-### 1. Установка зависимостей
+Проект использует Docker Compose для оркестрации следующих сервисов:
+- **CompetencyGraph** - основной контейнер с frontend (Nginx) и backend (FastAPI)
+- **CompetencyGraph-GraphDB** - база данных GraphDB для хранения графов компетенций
+- **CompetencyGraph-PostgreSQL** - реляционная база данных PostgreSQL
+- **CompetencyGraph-Redis** - кэш и хранилище сессий Redis
+- **CompetencyGraph-GraphDB-Init** - служебный контейнер для инициализации GraphDB
 
-```bash
-npm install
-```
+## Быстрый старт
 
-### 2. Настройка подключения к Backend
-
-Backend API должен быть запущен на `http://localhost:80`. 
-
-Если вам нужно изменить URL backend API, создайте файл `.env` в корне проекта:
-
-```bash
-VITE_API_URL=http://localhost:80/api/v1
-```
-
-### 3. Запуск приложения
+### Сборка и запуск
 
 ```bash
-npm run dev
+# Сборка образов
+docker-compose build
+
+# Запуск всех контейнеров
+docker-compose up -d
+
+# Проверка статуса
+docker-compose ps
+
+# Просмотр логов
+docker logs CompetencyGraph
 ```
 
-Приложение будет доступно по адресу `http://localhost:5173` (или другому порту, указанному Vite).
+### Остановка
 
-## Функциональность
+```bash
+# Остановка всех контейнеров
+docker-compose down
 
-### Авторизация
-
-- **Регистрация**: `/register` - создание нового аккаунта
-- **Вход**: `/login` - вход в систему
-- **Автоматическое обновление токенов**: Access token автоматически обновляется при истечении срока действия
-
-### Основные возможности
-
-- **Граф**: Визуализация и редактирование RDF-графов
-- **Разметка**: Работа с разметкой данных
-
-## Backend API
-
-Приложение работает с следующими endpoint'ами:
-
-- `POST /api/v1/auth/register` - регистрация пользователя
-- `POST /api/v1/auth/login` - вход в систему
-- `POST /api/v1/auth/refresh` - обновление access token
-- `POST /api/v1/auth/logout` - выход из системы
-
-Все защищенные endpoints требуют заголовок:
+# Остановка и удаление всех данных (volumes)
+docker-compose down -v
 ```
-Authorization: Bearer {access_token}
+
+## Доступ к сервисам
+
+- **Frontend**: http://localhost (порт 80)
+- **Backend API**: http://localhost/api/v1
+- **API Documentation**: http://localhost/api/v1/docs
+- **GraphDB**: http://localhost:7200
+- **PostgreSQL**: localhost:5432
+- **Redis**: localhost:6379
+
+## Структура проекта
+
+```
+.
+├── frontend/          # React + TypeScript приложение
+├── backend/          # FastAPI + Python приложение
+├── Dockerfile        # Multi-stage Dockerfile для сборки всего проекта
+├── docker-compose.yml # Оркестрация всех сервисов
+├── nginx.conf        # Конфигурация Nginx (раздача статики + проксирование API)
+└── entrypoint.sh     # Скрипт запуска Nginx и Backend
 ```
 
 ## Технологии
 
-- React 18
+### Frontend
+- React 19
 - TypeScript
 - Vite
-- React Router
-- Axios
-- Feature-Sliced Design архитектура
+- D3.js для визуализации графов
+- Axios для HTTP запросов
 
-Currently, two official plugins are available:
+### Backend
+- FastAPI
+- Python 3.13
+- AsyncPG для работы с PostgreSQL
+- SPARQLWrapper для работы с GraphDB
+- JWT авторизация
+- Redis для кэширования
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Инфраструктура
+- Docker & Docker Compose
+- Nginx (веб-сервер + reverse proxy)
+- GraphDB 10.6.1
+- PostgreSQL 16
+- Redis 7
 
-## Expanding the ESLint configuration
+## Разработка
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Переменные окружения
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Основные переменные окружения настроены в `docker-compose.yml`:
+- `GRAPHDB_URL` - URL для подключения к GraphDB
+- `DATABASE_URL` - URL для подключения к PostgreSQL
+- `REDIS_URL` - URL для подключения к Redis
+- `JWT_SECRET_KEY` - секретный ключ для JWT токенов
+- `JWT_ALGORITHM` - алгоритм шифрования JWT
+- `ACCESS_TOKEN_EXPIRE` - время жизни access токена (секунды)
+- `REFRESH_TOKEN_EXPIRE` - время жизни refresh токена (секунды)
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+### Логи
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+# Логи основного контейнера
+docker logs CompetencyGraph
+
+# Логи с отслеживанием в реальном времени
+docker logs -f CompetencyGraph
+
+# Логи всех сервисов
+docker-compose logs
+
+# Логи конкретного сервиса
+docker-compose logs graphdb
+docker-compose logs postgres
+docker-compose logs redis
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Troubleshooting
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Контейнер не запускается
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+# Проверьте логи
+docker logs CompetencyGraph
+
+# Проверьте статус зависимых сервисов
+docker-compose ps
 ```
+
+### Проблемы с портами
+
+Убедитесь, что порты 80, 5432, 6379 и 7200 не заняты другими приложениями:
+
+```bash
+lsof -i :80
+lsof -i :5432
+lsof -i :6379
+lsof -i :7200
+```
+
+### Пересборка после изменений
+
+```bash
+# Пересборка и перезапуск
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+

@@ -1,7 +1,7 @@
 services:
   dev:
     image: node:22.17.0
-    container_name: project-graph-dev
+    container_name: CompetencyGraph-Dev
     working_dir: /app
     volumes:
       - .:/app

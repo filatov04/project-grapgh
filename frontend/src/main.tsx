@@ -4,9 +4,9 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import GraphPage from "./pages/GraphPage/GraphPage.tsx";
 import { MarkupEditor } from "./pages/MarkupPage/MarkupEditor.tsx";
-import { LoginPage } from "./pages/LoginPage";
-import { RegisterPage } from "./pages/RegisterPage";
-import { AuthProvider, ProtectedRoute } from "./app/providers";
+import { LoginPage } from "./pages/LoginPage/index.ts";
+import { RegisterPage } from "./pages/RegisterPage/index.ts";
+import { AuthProvider, ProtectedRoute } from "./app/providers/index.ts";
 
 const root = document.getElementById("root")!;
 
