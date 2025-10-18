@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import styles from './GraphPage.module.css';
-import type { OntologyNode } from '../../shared/types/NodeManager';
 
 interface NewTripleMenuProps {
   onClose: () => void;
@@ -8,7 +7,7 @@ interface NewTripleMenuProps {
   predicates: string[];
   objects: string[];
   onAddPredicate: (newPredicate: string) => void;
-  onAddObject: (newObject: OntologyNode) => void;
+  onAddObject: (newObject: string) => { label: string; type?: string; children: any[] };
   onAddTriple: (subject: string, predicate: string, object: string) => void;
 }
 

@@ -1,25 +1,18 @@
-FROM node:22.17.0 as build
+FROM node:22.17.0
 
-WORKDIR /app/
-ENV PATH /app/node_modules/.bin:$PATH
+WORKDIR /app
 
-ADD package.json ./
-ADD package-lock.json ./
-ADD tsconfig.json ./
+COPY package*.json ./
 
 RUN npm install
 
-ADD . /app
+COPY . .
 
 RUN npm run build
 
-FROM nginx:1.19.7-alpine
-
-COPY --from=build /app/dist /usr/share/nginx/html
-
-RUN rm /etc/nginx/conf.d/default.conf
-ADD default.conf /etc/nginx/conf.d
+# Устанавливаем serve для раздачи статики
+RUN npm install -g serve
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["serve", "-s", "dist", "-l", "80"]

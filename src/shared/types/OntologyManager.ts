@@ -72,52 +72,20 @@ class OntologyManager {
     this.nodes.set(newId, updatedNode);
 
 
-    if (this.links instanceof Map) {
-        const newLinks = new Map<string, RDFLink>();
-        
-        this.links.forEach((link, key) => {
-            if (link.source === nodeId) {
-                newLinks.set(key, { ...link, source: newId });
-            } else if (link.target === nodeId) {
-                newLinks.set(key, { ...link, target: newId });
-            } else {
-                newLinks.set(key, link);
-            }
-        });
-        
-        this.links = newLinks;
-    } 
-
-    else if (this.links instanceof Set) {
-        const newLinks = new Set<RDFLink>();
-        
-        this.links.forEach(link => {
-            if (link.source === nodeId) {
-                newLinks.add({ ...link, source: newId });
-            } else if (link.target === nodeId) {
-                newLinks.add({ ...link, target: newId });
-            } else {
-                newLinks.add(link);
-            }
-        });
-        
-        this.links = newLinks;
-    }
-
-    else if (Array.isArray(this.links)) {
-        this.links = this.links.map(link => {
-            if (link.source === nodeId) {
-                return { ...link, source: newId };
-            }
-            if (link.target === nodeId) {
-                return { ...link, target: newId };
-            }
-            return link;
-        });
-    } else {
-        console.error('Неизвестный тип для this.links:', this.links);
-        return false;
-    }
+    // Обновляем ссылки (links всегда Set<RDFLink>)
+    const newLinks = new Set<RDFLink>();
+    
+    this.links.forEach(link => {
+        if (link.source === nodeId) {
+            newLinks.add({ ...link, source: newId });
+        } else if (link.target === nodeId) {
+            newLinks.add({ ...link, target: newId });
+        } else {
+            newLinks.add(link);
+        }
+    });
+    
+    this.links = newLinks;
 
 
     this.nodes.forEach(n => {

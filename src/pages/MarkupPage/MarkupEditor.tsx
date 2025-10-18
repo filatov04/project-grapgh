@@ -8,7 +8,6 @@ import type { FC, ReactNode } from 'react';
 import styles from './MarkupEditor.module.css';
 import { FileHTMLToString } from '../../features/FileHTMLToString/FileHTMLToString';
 import { getMarkup, postMarkup } from '../../shared/api/markupApi';
-import { getAllObjects, getAllPredicates } from '../../shared/api/generalApi';
 import { getGraph } from '../../shared/api/graphApi';
 import type { CommentInterface } from '../../shared/types/markupTypes';
 
@@ -132,7 +131,7 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
 
     try {
       const { data: loadedComments } = await getMarkup('testHash');
-      const sortedComments = loadedComments.sort((a, b) => a.startIndex - b.startIndex);
+      const sortedComments = loadedComments.sort((a: CommentInterface, b: CommentInterface) => a.startIndex - b.startIndex);
       setComments(sortedComments);
       console.log('Загруженные комментарии:', sortedComments);
     } catch (error) {
@@ -171,9 +170,6 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
           break;
         }
         textOffset += currentNode.textContent?.length || 0;
-        if (currentNode === node) {
-          break;
-        }
         currentNode = walker.nextNode();
       }
       return textOffset;

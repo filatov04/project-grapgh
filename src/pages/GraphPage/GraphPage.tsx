@@ -299,7 +299,7 @@ const GraphPage: React.FC = () => {
       const root = d3.hierarchy(hierarchyData);
       const treeLayout = d3.tree<any>()
         .size([height * 2, width * 0.5])
-        .separation((a, b) => 0.8);
+        .separation(() => 0.8);
 
       treeLayout(root);
 

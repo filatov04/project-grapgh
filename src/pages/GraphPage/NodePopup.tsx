@@ -48,7 +48,7 @@ const NodePopup: React.FC<{
         return false;
       }
 
-      let type = 'literal';
+      let type: 'class' | 'property' | 'literal' = 'literal';
       if (subjectNode.label === 'Class') type = 'class';
       if (subjectNode.label === 'Property') type = 'property';
 
@@ -87,13 +87,6 @@ const NodePopup: React.FC<{
 
   }
 
-  const handleDeleteTriple = () => {
-
-  }
-
-  const handleOpenDeleteDialog = (node: OntologyNode) => {
-    setNodeToDelete(node);
-  };
     const triples = OntologyManager.getAllTriplesWithNode(node.label);
 
     return (
@@ -155,16 +148,15 @@ const NodePopup: React.FC<{
                     predicates={predicates}
                     subjects={[node.label]}
                     objects={objects}
-                    initialSubject={node.label}
                     onAddPredicate={(pred) => {
                         PredicateManager.registerPredicate(pred);
                         updateData(); 
                     }}
-                    onAddObject={(objectLabel) => {
+                    onAddObject={(objectLabel: string) => {
                         const newNode = {
                             id: OntologyManager.generateNodeId(objectLabel),
                             label: objectLabel,
-                            type: 'instance',
+                            type: 'literal' as const,
                             children: []
                         };
                         OntologyManager.addNode(newNode);
