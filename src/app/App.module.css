@@ -39,6 +39,10 @@
   color: white;
 }
 
+.userMenu {
+  position: relative;
+}
+
 .login {
   padding: 0.5rem 1rem;
   background-color: #28a745;
@@ -52,6 +56,51 @@
 
 .login:hover {
   background-color: #218838;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1000;
+}
+
+.userInfo {
+  padding: 1rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.userName {
+  margin: 0 0 0.25rem 0;
+  font-weight: 600;
+  color: #212529;
+}
+
+.userEmail {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.logoutBtn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: #dc3545;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.logoutBtn:hover {
+  background-color: #f8f9fa;
 }
 
 .content {
