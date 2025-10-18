@@ -1,3 +1,4 @@
+import "./shared/styles/variable.css";
 import App from "./app/App.tsx";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
