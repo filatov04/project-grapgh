@@ -22,14 +22,14 @@ export const RegisterPage = () => {
     setIsLoading(true);
     try {
       const response = await authApi.register(data);
-      const { access_token, refresh_token } = response.data;
+      const { access_token, refresh_token, first_name, last_name } = response.data;
       
-      // Создаем объект пользователя из данных регистрации
+      // Создаем объект пользователя из ответа бэкенда
       const user = {
         id: 0,
         email: data.email,
-        first_name: data.first_name,
-        last_name: data.last_name
+        first_name: first_name,
+        last_name: last_name
       };
       
       // Используем функцию login из AuthProvider для обновления состояния

@@ -39,11 +39,22 @@ customAxiosInstance.interceptors.response.use(
             refresh_token: refreshToken
           });
 
-          const { access_token, refresh_token: newRefreshToken } = response.data;
+          const { access_token, refresh_token: newRefreshToken, first_name, last_name } = response.data;
           
           // Сохраняем новые токены
           localStorage.setItem('access_token', access_token);
           localStorage.setItem('refresh_token', newRefreshToken);
+
+          // Обновляем данные пользователя, если они пришли
+          if (first_name && last_name) {
+            const userData = localStorage.getItem('user_data');
+            if (userData) {
+              const user = JSON.parse(userData);
+              user.first_name = first_name;
+              user.last_name = last_name;
+              localStorage.setItem('user_data', JSON.stringify(user));
+            }
+          }
 
           // Обновляем заголовок оригинального запроса
           originalRequest.headers.Authorization = `Bearer ${access_token}`;

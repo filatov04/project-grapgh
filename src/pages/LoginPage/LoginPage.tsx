@@ -22,14 +22,14 @@ export const LoginPage = () => {
     setIsLoading(true);
     try {
       const response = await authApi.login(credentials);
-      const { access_token, refresh_token } = response.data;
+      const { access_token, refresh_token, first_name, last_name } = response.data;
       
-      // Создаем объект пользователя из email
+      // Создаем объект пользователя из ответа бэкенда
       const user = {
         id: 0,
         email: credentials.email,
-        first_name: '',
-        last_name: ''
+        first_name: first_name,
+        last_name: last_name
       };
       
       // Используем функцию login из AuthProvider для обновления состояния
