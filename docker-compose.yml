@@ -66,7 +66,11 @@ services:
       - ./backend/app/dao/repository-config.ttl:/tmp/repository-config.ttl
       - ./backend/app/dao/init-repository.sh:/tmp/init-repository.sh
     command: sh /tmp/init-repository.sh
-    restart: "no"
+    restart: on-failure
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
     networks:
       - app-network
 
