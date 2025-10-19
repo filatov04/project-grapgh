@@ -5,21 +5,23 @@ import { NewTripleMenu } from './NewTriplet';
 import PredicateManager from '../../shared/types/PredicateManager';
 import { EditNode } from './EditNode';
 import { DeleteNodeMenu } from './DeleteNodeMenu';
+import NodeVersionInfo from './NodeVersionInfo';
 
 const NodePopup: React.FC<{
   node: OntologyNode;
   onClose: () => void;
   position: { x: number; y: number };
-  onUpdate: () => void; 
+  onUpdate: () => void;
   setSelectedNode: (node: OntologyNode) => void;
 }> = ({ node, position, onUpdate, setSelectedNode  }) => {
     const [showNewTripleMenu, setShowNewTripleMenu] = useState(false);
     const [showEditNoteMenu, setEditNodeMenu] = useState(false);
+    const [showVersionInfo, setShowVersionInfo] = useState(false);
     const [predicates, setPredicates] = useState<string[]>([]);
     const [objects, setObjects] = useState<string[]>([]);
 
     const [nodeToDelete, setNodeToDelete] = useState<OntologyNode | null>(null);
-    
+
     const updateData = () => {
         setPredicates(OntologyManager.getAvailablePredicates());
         setObjects(
@@ -36,7 +38,7 @@ const NodePopup: React.FC<{
     const handleAddTriple = (subject: string, predicate: string, object: string) => {
     const subjectNode = OntologyManager.getNodeByLabel(subject);
     const objectNode = OntologyManager.getNodeByLabel(object);
-    
+
     if (!subjectNode || !objectNode) {
       console.error("Не найдены узлы для субъекта или объекта");
       return false;
@@ -56,8 +58,8 @@ const NodePopup: React.FC<{
     }
 
     OntologyManager.addLink(subjectNode.id, objectNode.id, predicate);
-    onUpdate(); 
-    updateData(); 
+    onUpdate();
+    updateData();
     setShowNewTripleMenu(false);
     return true;
   };
@@ -68,21 +70,21 @@ const NodePopup: React.FC<{
         return false;
     }
     if (newLabel.trim() === node.label) {
-        return true; 
+        return true;
      }
-  
+
     const success = OntologyManager.updateNodeLabel(node.id, newLabel);
     if (success) {
 
         alert('Название успешно изменено');
         setSelectedNode({ ...node, label: newLabel });
         onUpdate();
-        updateData(); 
+        updateData();
     }
 
     console.log(OntologyManager.getAllNodes());
     console.log(OntologyManager.getAllLinks());
-  
+
     return success;
 
   }
@@ -90,18 +92,18 @@ const NodePopup: React.FC<{
     const triples = OntologyManager.getAllTriplesWithNode(node.label);
 
     return (
-        <div 
+        <div
             className={styles.nodePopup}
             style={{
                 left: `${position.x + 30}px`,
                 top: `${position.y - 30}px`
             }}
-            onClick={(e) => e.stopPropagation()} 
+            onClick={(e) => e.stopPropagation()}
         >
             <div className={styles.popupHeader}>
                 <h4 className={styles.nodeTitle}>{node.label}</h4>
             </div>
-            
+
             <div className={styles.popupContent}>
                 {triples.length > 0 ? (
                     <ul className={styles.triplesList}>
@@ -119,27 +121,30 @@ const NodePopup: React.FC<{
             </div>
 
             <div className={styles.buttonRow}>
-                <button 
-                    className={styles.menuButton} 
+                <button
+                    className={styles.menuButton}
                     onClick={() => setShowNewTripleMenu(true)}
                 >
                     Создать триплет
                 </button>
-                <button 
+                <button
                     className={styles.menuButton}
                     onClick = {() => setEditNodeMenu(true)}
                 >
                     Редактировать
-                    </button>
-
-
-
-                <button 
+                </button>
+                <button
+                    className={styles.menuButton}
+                    onClick = {() => setShowVersionInfo(true)}
+                >
+                    Версия
+                </button>
+                <button
                     className={styles.menuButton}
                     onClick = {() => setNodeToDelete(node)}
-                    
                 >
-                    Удалить триплет</button>
+                    Удалить триплет
+                </button>
             </div>
 
             {showNewTripleMenu && (
@@ -150,7 +155,7 @@ const NodePopup: React.FC<{
                     objects={objects}
                     onAddPredicate={(pred) => {
                         PredicateManager.registerPredicate(pred);
-                        updateData(); 
+                        updateData();
                     }}
                     onAddObject={(objectLabel: string) => {
                         const newNode = {
@@ -160,7 +165,7 @@ const NodePopup: React.FC<{
                             children: []
                         };
                         OntologyManager.addNode(newNode);
-                        updateData(); 
+                        updateData();
                         return newNode;
                     }}
                     onAddTriple={handleAddTriple}
@@ -182,6 +187,13 @@ const NodePopup: React.FC<{
                 onDeleteConfirm={(id) => OntologyManager.deleteNode(id)}
                 onUpdate={onUpdate}
             />
+            )}
+
+            {showVersionInfo && (
+                <NodeVersionInfo
+                    nodeId={node.id}
+                    onClose={() => setShowVersionInfo(false)}
+                />
             )}
         </div>
     );

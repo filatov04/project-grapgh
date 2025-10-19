@@ -140,6 +140,12 @@ class CompetencyDAO:
         # Обрабатываем узлы
         for node in graph_data.get("nodes", []):
             node_uri = node["id"]
+            # Проверяем, что URI валидный (начинается с http:// или https://)
+            if not node_uri.startswith(("http://", "https://")):
+                logger.warning(f"Skipping invalid URI: {node_uri} (must start with http:// or https://)")
+                total += 1
+                continue
+
             node_type = type_map.get(node["type"], node["type"])
             label = node["label"].replace('"', '\\"')
 
@@ -164,8 +170,28 @@ class CompetencyDAO:
 
         # Обрабатываем связи
         for link in graph_data.get("links", []):
+            source = link['source']
+            predicate = link['predicate']
+            target = link['target']
+
+            # Проверяем, что все URI валидные (начинаются с http:// или https://)
+            if not source.startswith(("http://", "https://")):
+                logger.warning(f"Skipping invalid source URI: {source} (must start with http:// or https://)")
+                total += 1
+                continue
+
+            if not predicate.startswith(("http://", "https://")):
+                logger.warning(f"Skipping invalid predicate URI: {predicate} (must start with http:// or https://)")
+                total += 1
+                continue
+
+            if not target.startswith(("http://", "https://")):
+                logger.warning(f"Skipping invalid target URI: {target} (must start with http:// or https://)")
+                total += 1
+                continue
+
             query = f"""
-            INSERT DATA {{ <{link['source']}> <{link['predicate']}> <{link['target']}>. }}
+            INSERT DATA {{ <{source}> <{predicate}> <{target}>. }}
             """
 
             try:
@@ -178,7 +204,7 @@ class CompetencyDAO:
                 response.raise_for_status()
                 successful += 1
             except Exception as e:
-                logger.warning(f"Failed to save link {link['source']} -> {link['target']}: {e}")
+                logger.warning(f"Failed to save link {source} -> {target}: {e}")
 
             total += 1
 
@@ -218,32 +244,36 @@ class CompetencyDAO:
         else:
             start_uri = f"<http://example.org/{repo}#{start_from}>"
 
+        # Упрощённый запрос для получения части графа
         query = f"""
         {prefixes}
 
-        SELECT DISTINCT ?id ?label ?type ?source ?target ?predicate
+        SELECT DISTINCT ?id ?label ?type
         WHERE {{
             {{
-                # Получаем узлы
-                {start_uri} (:hasLevel1|:hasLevel2|:hasLevel3|:hasLevel4|:hasLevel5){{0,{depth}}} ?id .
+                # Получаем начальный узел
+                BIND({start_uri} AS ?id)
                 OPTIONAL {{ ?id rdfs:label ?label . }}
-
-                # Определяем тип узла
-                BIND(
-                    IF(EXISTS {{ ?id a rdfs:Class }}, "class",
-                    IF(EXISTS {{ ?id a rdf:Property }}, "property",
-                    "instance")) AS ?type)
             }}
             UNION
             {{
-                # Получаем связи
-                ?source (:hasLevel1|:hasLevel2|:hasLevel3|:hasLevel4|:hasLevel5) ?target .
-                BIND("http://example.org/hasSubCompetence" AS ?predicate)
-
-                # Фильтруем по глубине
-                {start_uri} (:hasLevel1|:hasLevel2|:hasLevel3|:hasLevel4|:hasLevel5){{0,{depth}}} ?source .
-                {start_uri} (:hasLevel1|:hasLevel2|:hasLevel3|:hasLevel4|:hasLevel5){{0,{depth}}} ?target .
+                # Получаем узлы напрямую связанные (глубина 1)
+                {start_uri} ?p1 ?id .
+                OPTIONAL {{ ?id rdfs:label ?label . }}
             }}
+            UNION
+            {{
+                # Получаем узлы на глубине 2
+                {start_uri} ?p1 ?mid1 .
+                ?mid1 ?p2 ?id .
+                OPTIONAL {{ ?id rdfs:label ?label . }}
+            }}
+
+            # Определяем тип узла
+            BIND(
+                IF(EXISTS {{ ?id a rdfs:Class }}, "class",
+                IF(EXISTS {{ ?id a rdf:Property }}, "property",
+                "literal")) AS ?type)
         }}
         OFFSET {offset}
         LIMIT {limit}
@@ -251,9 +281,8 @@ class CompetencyDAO:
 
         data = await cls._execute_stmt(client, query)
 
-        # Собираем результаты
+        # Собираем результаты - только узлы
         nodes = []
-        links = []
         seen_nodes = set()
 
         for binding in data["results"]["bindings"]:
@@ -268,19 +297,57 @@ class CompetencyDAO:
                         "type": binding.get("type", {}).get("value", "class")
                     })
 
-            # Обработка связей
-            if "source" in binding and "target" in binding:
-                links.append({
-                    "source": binding["source"]["value"],
-                    "target": binding["target"]["value"],
-                    "predicate": binding.get("predicate", {}).get("value",
-                        "http://example.org/hasSubCompetence")
-                })
+        # Получаем связи между найденными узлами
+        links = await cls._get_links_between_nodes(client, config, list(seen_nodes))
 
         return {
             "nodes": nodes,
             "links": links
         }
+
+    @classmethod
+    async def _get_links_between_nodes(
+        cls,
+        client: SPARQLWrapper,
+        config: Config,
+        node_uris: list[str]
+    ) -> list[dict]:
+        """Получить связи между указанными узлами"""
+        if not node_uris:
+            return []
+
+        prefixes = cls._prefix_str(config)
+
+        # Формируем VALUES для узлов
+        values_clause = " ".join([f"<{uri}>" for uri in node_uris])
+
+        query = f"""
+        {prefixes}
+
+        SELECT DISTINCT ?source ?target ?predicate
+        WHERE {{
+            VALUES ?source {{ {values_clause} }}
+            VALUES ?target {{ {values_clause} }}
+            ?source ?predicate ?target .
+            FILTER(?source != ?target)
+        }}
+        """
+
+        try:
+            data = await cls._execute_stmt(client, query)
+            links = []
+            for binding in data["results"]["bindings"]:
+                if "source" in binding and "target" in binding:
+                    links.append({
+                        "source": binding["source"]["value"],
+                        "target": binding["target"]["value"],
+                        "predicate": binding.get("predicate", {}).get("value",
+                            "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+                    })
+            return links
+        except Exception as e:
+            logger.warning(f"Error getting links between nodes: {e}")
+            return []
 
     @classmethod
     async def get_graph_part_from_json(

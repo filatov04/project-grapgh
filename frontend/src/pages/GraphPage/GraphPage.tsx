@@ -22,13 +22,13 @@ const GraphPage: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [isSaving, setIsSaving] = useState(false);
-  
 
-  
+
+
   const updateDataFromManager = useCallback(() => {
     const allNodes = OntologyManager.getAllNodes();
     const allLinks = OntologyManager.getAllLinks();
-    setNodes(allNodes); 
+    setNodes(allNodes);
     setLinks(allLinks); // это по факту все связи
     setPredicates(OntologyManager.getAvailablePredicates()); // а это список уникальных
   }, []);
@@ -42,7 +42,7 @@ const GraphPage: React.FC = () => {
       try {
         const content = e.target?.result as string;
         const jsonData = JSON.parse(content);
-        
+
         // Валидация структуры файла
         if (!jsonData.nodes || !jsonData.links) {
           alert("Неверный формат файла. Ожидаются поля nodes и links.");
@@ -215,7 +215,9 @@ const GraphPage: React.FC = () => {
   }, []);
 
 
-  const handleSaveGraph = async () => {
+  const handleSaveGraph = useCallback(async () => {
+    if (isSaving) return; // Предотвращаем двойное нажатие
+
     setIsSaving(true);
     try {
       const nodesToSave = nodes.map(({ children, ...rest }) => rest);
@@ -223,16 +225,26 @@ const GraphPage: React.FC = () => {
         nodes: nodesToSave,
         links: links,
       };
-      await postGraph(graphData);
+
+      console.log('Saving graph:', { nodes: nodesToSave.length, links: links.length });
+      const response = await postGraph(graphData);
+      console.log('Graph saved successfully:', response);
+
       alert('Граф успешно сохранен!');
-    } catch (error) {
+
+      // Опционально: перезагрузить данные с сервера для синхронизации
+      // Раскомментируйте следующую строку, если нужна синхронизация
+      // await initializeData();
+
+    } catch (error: any) {
       console.error('Ошибка при сохранении графа:', error);
-      alert('Не удалось сохранить граф.');
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Неизвестная ошибка';
+      alert(`Не удалось сохранить граф: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
-  };
-  
+  }, [nodes, links, isSaving]);
+
  const handleAddTriple = useCallback((
     subjectLabel: string,
     predicateLabel: string,
@@ -267,9 +279,9 @@ const GraphPage: React.FC = () => {
         console.error("Не удалось изменить тип объекта");
         return false;
       }
-        
+
     }
-    const linkAdded = OntologyManager.addLink(subject.id, object.id, predicateLabel); 
+    const linkAdded = OntologyManager.addLink(subject.id, object.id, predicateLabel);
     if (linkAdded) {
       updateDataFromManager();
     return true;
@@ -277,7 +289,7 @@ const GraphPage: React.FC = () => {
 
   }, [updateDataFromManager]);
 
-  
+
     const renderTree = useCallback(() => {
       if (!nodes.length || !links.length) return;
 
@@ -298,15 +310,15 @@ const GraphPage: React.FC = () => {
 
       const root = d3.hierarchy(hierarchyData);
       const treeLayout = d3.tree<any>()
-        .size([height * 2, width * 0.5])
-        .separation(() => 0.8);
+        .size([height * 3, width * 0.7])
+        .separation(() => 1.5);
 
       treeLayout(root);
 
       // Стиль кнопок
       const buttonStyle = {
         width: 160,
-        height: 40, 
+        height: 40,
         rx: 8,
         ry: 8,
         fill: "#ffffffff",
@@ -317,10 +329,10 @@ const GraphPage: React.FC = () => {
       // Создание кнопок
       const createButton = (yPos: number, text: string, onClick: () => void, disabled = false) => {
         const button = svg.append('g')
-          .attr("transform", `translate(20,${yPos})`) 
+          .attr("transform", `translate(20,${yPos})`)
           .style("cursor", disabled ? "not-allowed" : "pointer")
           .on("click", onClick);
-          
+
         if (disabled) {
           button.style("pointer-events", "none");
         }
@@ -349,7 +361,7 @@ const GraphPage: React.FC = () => {
           .attr("fill", "black")
           .attr("font-size", "14px")
           .attr("font-weight", "500");
-          
+
         if (isSaving && text === "Сохранить") {
           textElement.text("Сохранение...");
         } else {
@@ -368,7 +380,7 @@ const GraphPage: React.FC = () => {
         .attr("id", "button-shadow")
         .attr("height", "130%")
         .attr("width", "130%");
-      
+
       filter.append("feGaussianBlur")
         .attr("in", "SourceAlpha")
         .attr("stdDeviation", 2)
@@ -378,7 +390,7 @@ const GraphPage: React.FC = () => {
         .attr("dx", 1)
         .attr("dy", 1)
         .attr("result", "offsetBlur");
-      
+
       const feMerge = filter.append("feMerge");
       feMerge.append("feMergeNode").attr("in", "offsetBlur");
       feMerge.append("feMergeNode").attr("in", "SourceGraphic");
@@ -398,21 +410,37 @@ const GraphPage: React.FC = () => {
           const target = d.target as d3.HierarchyPointNode<OntologyNode>;
           const midX = (source.x + target.x) / 2;
           const midY = (source.y + target.y) / 2;
-          
-          const linkData = links.find(l => 
+
+          const linkData = links.find(l =>
             l.source === source.data.id && l.target === target.data.id
           );
-          
+
           if (linkData) {
             const label = linkData.predicate.split(/[#\/]/).pop() || linkData.predicate;
-            
-            g.append("text")
+
+            // Создаем группу для метки
+            const labelGroup = g.append("g");
+
+            // Создаем временный текст для измерения размера
+            const tempText = labelGroup.append("text")
               .attr("class", styles.linkLabel)
               .attr("x", midX)
               .attr("y", midY)
               .attr("text-anchor", "middle")
               .attr("dy", "-0.5em")
               .text(label);
+
+            // Получаем размер текста
+            const bbox = (tempText.node() as SVGTextElement).getBBox();
+            const padding = 4;
+
+            // Добавляем фоновый прямоугольник ПЕРЕД текстом
+            labelGroup.insert("rect", "text")
+              .attr("class", styles.linkLabelBackground)
+              .attr("x", bbox.x - padding)
+              .attr("y", bbox.y - padding)
+              .attr("width", bbox.width + padding * 2)
+              .attr("height", bbox.height + padding * 2);
           }
         });
 
@@ -437,13 +465,15 @@ const GraphPage: React.FC = () => {
         .attr("stroke-width", 2);
 
       nodeGroups.append("text")
-        .attr("dy", ".31em")
-        .attr("x", (d: any) => d.children ? -20 : 20)
-        .style("text-anchor", (d: any) => d.children ? "end" : "start")
-        .style("fill", "#333")
-        .style("font-size", "14px")
-        .text((d: any) => d.data.label.length > 20 
-          ? `${d.data.label.substring(0, 20)}...` 
+        .attr("dy", "0")
+        .attr("x", 0)
+        .attr("y", 35)
+        .style("text-anchor", "middle")
+        .style("fill", "#222")
+        .style("font-size", "12px")
+        .style("font-weight", "600")
+        .text((d: any) => d.data.label.length > 20
+          ? `${d.data.label.substring(0, 20)}...`
           : d.data.label
         );
 
@@ -456,7 +486,7 @@ const GraphPage: React.FC = () => {
 
       svg.call(zoom)
         .call(zoom.transform, d3.zoomIdentity.translate(width / 2, 60).scale(0.8));
-    }, [nodes, links, buildTree, isSaving, handleUploadClick]);
+    }, [nodes, links, buildTree, handleUploadClick]);
 
 
   useEffect(() => {
@@ -478,7 +508,7 @@ const GraphPage: React.FC = () => {
       setSelectedNode(null);
     }
   };
-  
+
   document.addEventListener('click', handleClickOutside);
   return () => document.removeEventListener('click', handleClickOutside);
 }, [selectedNode]);
@@ -506,7 +536,7 @@ const GraphPage: React.FC = () => {
           predicates={predicates}
           subjects={nodes.map(n => n.label)}
           objects={nodes.map(n => n.label)}
-          
+
           onAddPredicate={(pred) => {
             PredicateManager.registerPredicate(pred);
             setPredicates(OntologyManager.getAvailablePredicates());
@@ -516,10 +546,10 @@ const GraphPage: React.FC = () => {
           onAddObject={(objectLabel) => {
             const newNode = {
               label: objectLabel,
-              type: undefined, 
+              type: undefined,
               children: []
             };
-            
+
             OntologyManager.addNode(newNode as any);
             const updatedNodes = OntologyManager.getAllNodes();
             setNodes(updatedNodes);
@@ -533,11 +563,11 @@ const GraphPage: React.FC = () => {
       )}
 
       {selectedNode && (
-      <NodePopup 
+      <NodePopup
         node={selectedNode}
         onClose={() => setSelectedNode(null)}
         position={popupPosition}
-        onUpdate={updateDataFromManager} 
+        onUpdate={updateDataFromManager}
         setSelectedNode={setSelectedNode}
       />
     )}
