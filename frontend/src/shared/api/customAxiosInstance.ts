@@ -1,7 +1,13 @@
 import axios from 'axios';
+import { store } from '../store/store';
+import { logout as logoutAction, updateTokens, updateUser } from '../store/authSlice';
 
-// Используем переменную окружения или значение по умолчанию
-const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:80/api/v1';
+// В production (Docker) используется относительный путь, который проксируется nginx на backend контейнер
+// В development можно переопределить через VITE_API_URL для прямого обращения к backend
+const baseURL = import.meta.env.VITE_API_URL || '/api/v1';
+
+// console.log('customAxiosInstance: Base URL is', baseURL);
+// console.log('customAxiosInstance: VITE_API_URL env var is', import.meta.env.VITE_API_URL);
 
 const customAxiosInstance = axios.create({
   baseURL,
@@ -10,7 +16,10 @@ const customAxiosInstance = axios.create({
 // Добавляем interceptor для автоматической отправки токена
 customAxiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    // Получаем токен из Redux store
+    const state = store.getState();
+    const token = state.auth.accessToken;
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,48 +35,89 @@ customAxiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    
+    // console.log('Interceptor: Got error', {
+    //   status: error.response?.status,
+    //   url: originalRequest?.url,
+    //   method: originalRequest?.method
+    // });
 
-    // Если получили 401 и это не повторный запрос
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Пропускаем обработку ошибок для auth endpoints (login/register)
+    // Эти ошибки должны обрабатываться формами напрямую
+    if (
+      originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/register')
+    ) {
+      // console.log('Interceptor: Skipping auth endpoint, passing error to form');
+      return Promise.reject(error);
+    }
+
+    // Если получили 401 и это не повторный запрос и не запрос на refresh
+    if (
+      error.response?.status === 401 && 
+      !originalRequest._retry && 
+      !originalRequest.url?.includes('/auth/refresh')
+    ) {
       originalRequest._retry = true;
 
-      try {
-        // Пытаемся обновить токен
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const response = await axios.post(`${baseURL}/auth/refresh`, {
-            refresh_token: refreshToken
-          });
-
-          const { access_token, refresh_token: newRefreshToken, first_name, last_name } = response.data;
-          
-          // Сохраняем новые токены
-          localStorage.setItem('access_token', access_token);
-          localStorage.setItem('refresh_token', newRefreshToken);
-
-          // Обновляем данные пользователя, если они пришли
-          if (first_name && last_name) {
-            const userData = localStorage.getItem('user_data');
-            if (userData) {
-              const user = JSON.parse(userData);
-              user.first_name = first_name;
-              user.last_name = last_name;
-              localStorage.setItem('user_data', JSON.stringify(user));
-            }
-          }
-
-          // Обновляем заголовок оригинального запроса
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-
-          // Повторяем оригинальный запрос
-          return customAxiosInstance(originalRequest);
+      // Получаем refreshToken из Redux store
+      const state = store.getState();
+      const refreshToken = state.auth.refreshToken;
+      
+      // Если нет refresh_token, сразу редиректим на логин
+      if (!refreshToken) {
+        console.log('Interceptor: No refresh token, redirecting to login');
+        
+        // Диспатчим logout action в Redux
+        store.dispatch(logoutAction());
+        
+        // Редиректим только если не на странице логина/регистрации
+        if (!window.location.pathname.includes('/login') && 
+            !window.location.pathname.includes('/register')) {
+          window.location.href = '/login';
         }
+        return Promise.reject(error);
+      }
+
+      try {
+        // Пытаемся обновить токен используя отдельный axios instance
+        const response = await axios.post(`${baseURL}/auth/refresh`, {
+          refresh_token: refreshToken
+        });
+
+        const { access_token, refresh_token: newRefreshToken, first_name, last_name } = response.data;
+        
+        // Обновляем токены через Redux
+        store.dispatch(updateTokens({ 
+          accessToken: access_token, 
+          refreshToken: newRefreshToken 
+        }));
+
+        // Обновляем данные пользователя, если они пришли
+        if (first_name && last_name) {
+          store.dispatch(updateUser({ 
+            first_name, 
+            last_name 
+          }));
+        }
+
+        // Обновляем заголовок оригинального запроса
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+
+        // Повторяем оригинальный запрос
+        return customAxiosInstance(originalRequest);
       } catch (refreshError) {
         // Если не удалось обновить токен - очищаем данные и перенаправляем
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user_data');
-        window.location.href = '/login';
+        console.error('Token refresh failed:', refreshError);
+        
+        // Диспатчим logout action в Redux
+        store.dispatch(logoutAction());
+        
+        // Редиректим только если мы не на странице логина
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        
         return Promise.reject(refreshError);
       }
     }

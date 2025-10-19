@@ -32,16 +32,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             self._token_service = TokenService(self._redis_client, self._config)
 
     async def dispatch(self, request: Request, call_next):
-        # Пропускаем OPTIONS запросы (CORS preflight)
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # Пропускаем некоторые пути без аутентификации
         if self._should_skip_auth(request.url.path):
             return await call_next(request)
 
         try:
-            # Получаем токен из заголовка
             token = self._extract_token(request)
             if not token:
                 return JSONResponse(
@@ -49,10 +46,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Missing authentication token"}
                 )
 
-            # Инициализируем зависимости (один раз)
             await self._init_dependencies()
 
-            # Проверяем токен
             payload = await self._token_service.verify_token(token)
             if not payload or payload.get("type") != "access":
                 return JSONResponse(
@@ -60,7 +55,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Invalid or expired token"}
                 )
 
-            # Сохраняем данные пользователя в state запроса
             request.state.user_id = int(payload.get("sub"))
             request.state.user_email = payload.get("email")
 
@@ -74,7 +68,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
     def _should_skip_auth(self, path: str) -> bool:
-        """Проверка путей, не требующих аутентификации"""
         skip_paths = [
             "/docs",
             "/redoc",
@@ -87,7 +80,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return any(path.startswith(skip_path) for skip_path in skip_paths)
 
     def _extract_token(self, request: Request) -> Optional[str]:
-        """Извлечение токена из заголовка Authorization"""
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             return None

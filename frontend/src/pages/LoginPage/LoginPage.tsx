@@ -36,7 +36,7 @@ export const LoginPage = () => {
       login(user, access_token, refresh_token);
       
       navigate('/');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
       throw error;
     } finally {

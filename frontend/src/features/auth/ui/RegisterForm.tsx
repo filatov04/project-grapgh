@@ -43,8 +43,13 @@ export const RegisterForm = ({ onSubmit, isLoading = false }: RegisterFormProps)
         email, 
         password 
       });
-    } catch {
-      setError('Ошибка регистрации. Возможно, пользователь уже существует');
+    } catch (err: any) {
+      // Показываем детальное сообщение от сервера, если оно есть
+      const errorMessage = err?.response?.data?.detail || 
+                          err?.response?.data?.message ||
+                          err?.message ||
+                          'Ошибка регистрации. Возможно, пользователь уже существует';
+      setError(errorMessage);
     }
   };
 

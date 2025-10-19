@@ -25,8 +25,13 @@ export const LoginForm = ({ onSubmit, isLoading = false }: LoginFormProps) => {
 
     try {
       await onSubmit({ email, password });
-    } catch {
-      setError('Ошибка входа. Проверьте email и пароль');
+    } catch (err: any) {
+      // Показываем детальное сообщение от сервера, если оно есть
+      const errorMessage = err?.response?.data?.detail || 
+                          err?.response?.data?.message ||
+                          err?.message ||
+                          'Ошибка входа. Проверьте email и пароль';
+      setError(errorMessage);
     }
   };
 

@@ -210,6 +210,148 @@ class CompetencyDAO:
 
         logger.info(f"Saved graph to GraphDB: {successful}/{total} successful")
         return successful > 0
+
+    @classmethod
+    async def add_triple(
+        cls,
+        subject: str,
+        predicate: str,
+        object_value: str,
+        config: Config = Depends(wiring.Provide["config"])
+    ) -> bool:
+        """
+        Добавить один триплет в GraphDB
+        """
+        graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
+        auth = ("admin", "root")
+
+        query = f"""
+        INSERT DATA {{ <{subject}> <{predicate}> <{object_value}>. }}
+        """
+
+        try:
+            response = requests.post(
+                graphdb_url,
+                data={"update": query},
+                auth=auth,
+                headers={"Accept": "application/json"}
+            )
+            response.raise_for_status()
+            logger.info(f"Added triple: <{subject}> <{predicate}> <{object_value}>")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add triple: {e}")
+            raise RuntimeError(f"Failed to add triple: {e}")
+
+    @classmethod
+    async def delete_triple(
+        cls,
+        subject: str,
+        predicate: str,
+        object_value: str,
+        config: Config = Depends(wiring.Provide["config"])
+    ) -> bool:
+        """
+        Удалить один триплет из GraphDB
+        """
+        graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
+        auth = ("admin", "root")
+
+        query = f"""
+        DELETE DATA {{ <{subject}> <{predicate}> <{object_value}>. }}
+        """
+
+        try:
+            response = requests.post(
+                graphdb_url,
+                data={"update": query},
+                auth=auth,
+                headers={"Accept": "application/json"}
+            )
+            response.raise_for_status()
+            logger.info(f"Deleted triple: <{subject}> <{predicate}> <{object_value}>")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete triple: {e}")
+            raise RuntimeError(f"Failed to delete triple: {e}")
+
+    @classmethod
+    async def delete_node(
+        cls,
+        node_uri: str,
+        config: Config = Depends(wiring.Provide["config"])
+    ) -> bool:
+        """
+        Удалить узел и все связанные с ним триплеты из GraphDB
+        Удаляет все триплеты, где узел является субъектом или объектом
+        """
+        graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
+        auth = ("admin", "root")
+
+        # Удаляем все триплеты, где узел является субъектом
+        query1 = f"""
+        DELETE WHERE {{ <{node_uri}> ?p ?o . }}
+        """
+
+        # Удаляем все триплеты, где узел является объектом
+        query2 = f"""
+        DELETE WHERE {{ ?s ?p <{node_uri}> . }}
+        """
+
+        try:
+            # Выполняем первый запрос
+            response = requests.post(
+                graphdb_url,
+                data={"update": query1},
+                auth=auth,
+                headers={"Accept": "application/json"}
+            )
+            response.raise_for_status()
+
+            # Выполняем второй запрос
+            response = requests.post(
+                graphdb_url,
+                data={"update": query2},
+                auth=auth,
+                headers={"Accept": "application/json"}
+            )
+            response.raise_for_status()
+
+            logger.info(f"Deleted node: <{node_uri}> and all related triples")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete node: {e}")
+            raise RuntimeError(f"Failed to delete node: {e}")
+
+    @classmethod
+    async def clear_repository(
+        cls,
+        config: Config = Depends(wiring.Provide["config"])
+    ) -> bool:
+        """
+        Очистить весь репозиторий GraphDB
+        ВНИМАНИЕ: Удаляет ВСЕ данные!
+        """
+        graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
+        auth = ("admin", "root")
+
+        query = """
+        DELETE WHERE { ?s ?p ?o . }
+        """
+
+        try:
+            response = requests.post(
+                graphdb_url,
+                data={"update": query},
+                auth=auth,
+                headers={"Accept": "application/json"}
+            )
+            response.raise_for_status()
+            logger.warning("Cleared entire repository!")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to clear repository: {e}")
+            raise RuntimeError(f"Failed to clear repository: {e}")
     #11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 
 
@@ -409,7 +551,7 @@ class CompetencyDAO:
 
         SELECT DISTINCT ?ancestor ?label ?level
         WHERE {{
-        {comp_uri} (:hasSubCompetence)+ ?ancestor .
+        ?ancestor (<http://example.org/hasSubCompetence>)+ {comp_uri} .
         OPTIONAL {{ ?ancestor rdfs:label ?label . }}
         OPTIONAL {{
             ?ancestor :hasLevel1 ?_ .
@@ -479,7 +621,7 @@ class CompetencyDAO:
 
         SELECT DISTINCT ?descendant ?label ?level
         WHERE {{
-        {comp_uri} (:hasSubCompetence)+ ?descendant .
+        {comp_uri} (<http://example.org/hasSubCompetence>)+ ?descendant .
         OPTIONAL {{ ?descendant rdfs:label ?label . }}
         OPTIONAL {{
             ?descendant :hasLevel1 ?_ .
@@ -555,9 +697,9 @@ class CompetencyDAO:
         WHERE {{
         VALUES (?start ?end) {{ ({start_uri} {end_uri}) }}
 
-        ?start (:hasSubCompetence)+ ?end .
+        ?start (<http://example.org/hasSubCompetence>)+ ?end .
 
-        ?node ( ^:hasSubCompetence* | :hasSubCompetence* ) ?end .
+        ?node ( ^<http://example.org/hasSubCompetence>* | <http://example.org/hasSubCompetence>* ) ?end .
 
         OPTIONAL {{ ?node rdfs:label ?label . }}
         }}

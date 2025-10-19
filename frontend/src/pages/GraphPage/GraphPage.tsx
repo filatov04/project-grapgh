@@ -5,572 +5,180 @@ import { NewTripleMenu } from "./NewTriplet";
 import OntologyManager, { type OntologyNode } from "../../shared/types/OntologyManager";
 import PredicateManager from "../../shared/types/PredicateManager";
 import type { RDFLink } from "../../shared/types/graphTypes";
-import { postGraph, type GraphData, getGraph } from "../../shared/api/graphApi";
-import graphData from '../../../public/input.json';
 import NodePopup from "./NodePopup";
-import { type NodeType } from "../../shared/types/OntologyManager";
-
-
+import { LoadingSpinner } from "./components/LoadingSpinner";
+import { ErrorDisplay } from "./components/ErrorDisplay";
+import { useGraphData } from "./hooks/useGraphData";
+import { useGraphActions } from "./hooks/useGraphActions";
+import { useGraphRenderer } from "./hooks/useGraphRenderer";
+import { useFileUpload } from "./hooks/useFileUpload";
 
 const GraphPage: React.FC = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
   const [showMenu, setShowMenu] = useState(false);
   const [predicates, setPredicates] = useState<string[]>([]);
   const [nodes, setNodes] = useState<OntologyNode[]>([]);
   const [links, setLinks] = useState<RDFLink[]>([]);
   const [selectedNode, setSelectedNode] = useState<OntologyNode | null>(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
-  const [isSaving, setIsSaving] = useState(false);
 
+  // Хук для управления данными графа
+  const { isLoading, loadError, initializeData } = useGraphData();
 
-
+  // Функция обновления данных из менеджера
+  // Используем useCallback без зависимостей для стабильности ссылки
   const updateDataFromManager = useCallback(() => {
     const allNodes = OntologyManager.getAllNodes();
     const allLinks = OntologyManager.getAllLinks();
+    const allPredicates = OntologyManager.getAvailablePredicates();
+    
+    // Просто обновляем состояние - React оптимизирует это
     setNodes(allNodes);
-    setLinks(allLinks); // это по факту все связи
-    setPredicates(OntologyManager.getAvailablePredicates()); // а это список уникальных
+    setLinks(allLinks);
+    setPredicates(allPredicates);
   }, []);
 
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string;
-        const jsonData = JSON.parse(content);
-
-        // Валидация структуры файла
-        if (!jsonData.nodes || !jsonData.links) {
-          alert("Неверный формат файла. Ожидаются поля nodes и links.");
-          return;
-        }
-
-        // Очищаем текущие данные
-        OntologyManager.clear();
-
-        // Загружаем новые данные
-        jsonData.nodes.forEach((node: any) => {
-          OntologyManager.addNode({
-            id: node.id,
-            label: node.label,
-            type: node.type as NodeType,
-            children: []
-          });
-        });
-
-        jsonData.links.forEach((link: any) => {
-          OntologyManager.addLink(link.source, link.target, link.predicate);
-        });
-
-        updateDataFromManager();
-        alert("Граф успешно загружен из файла!");
-
-        // Очищаем input для возможности загрузки того же файла снова
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-      } catch (error) {
-        console.error("Ошибка при чтении файла:", error);
-        alert("Не удалось прочитать файл. Проверьте формат JSON.");
-      }
-    };
-    reader.readAsText(file);
-  }, [updateDataFromManager]);
-
-   const handleUploadClick = useCallback(() => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  }, []);
-
-
-
-
-  // const initializeData = useCallback(async () => {
-  //   OntologyManager.clear();
-  //   let data: GraphData | null = null;
-  //   try {
-  //     const response = await getGraph();
-  //     data = response.data;
-  //     console.log('data from server', data);
-  //   } catch (e) {
-  //     console.error('Ошибка при получении graphData с сервера:', e);
-  //   }
-
-  //   let sourceData: GraphData;
-  //   if (!data || !data.nodes || !Array.isArray(data.nodes) || !data.nodes.length || !data.links || !Array.isArray(data.links) || !data.links.length) {
-  //     // Приводим тип поля type к NodeType
-  //     sourceData = {
-  //       nodes: graphData.nodes.map(n => ({ ...n, type: n.type as NodeType })),
-  //       links: graphData.links
-  //     };
-  //   } else {
-  //     sourceData = data;
-  //   }
-
-  //   try {
-  //     sourceData.nodes.forEach(node => {
-  //       OntologyManager.addNode({
-  //         id: node.id,
-  //         label: node.label,
-  //         type: node.type as NodeType,
-  //         children: []
-  //       });
-  //     });
-
-  //     sourceData.links.forEach(link => {
-  //       OntologyManager.addLink(link.source, link.target, link.predicate);
-  //     });
-
-  //     updateDataFromManager();
-  //   } catch (error) {
-  //     console.error("Error loading graph data: ", error);
-  //     const fallbackNode: OntologyNode = {
-  //       id: "http://www.w3.org/2000/01/rdf-schema#Class",
-  //       label: "Class",
-  //       type: "class",
-  //       children: [],
-  //     };
-  //     OntologyManager.addNode(fallbackNode);
-  //     updateDataFromManager();
-  //   }
-  // }, [updateDataFromManager]);
-
-
- const initializeData = useCallback(async () => {
-    OntologyManager.clear();
-    let data: GraphData | null = null;
-    try {
-      const response = await getGraph();
-      data = response.data;
-      console.log('data from server', data);
-    } catch (e) {
-      console.error('Ошибка при получении graphData с сервера:', e);
-    }
-
-    let sourceData: GraphData;
-    if (!data || !data.nodes || !Array.isArray(data.nodes) || !data.nodes.length || !data.links || !Array.isArray(data.links) || !data.links.length) {
-      sourceData = {
-        nodes: graphData.nodes.map(n => ({ ...n, type: n.type as NodeType })),
-        links: graphData.links
-      };
-    } else {
-      sourceData = data;
-    }
-
-    try {
-      sourceData.nodes.forEach(node => {
-        OntologyManager.addNode({
-          id: node.id,
-          label: node.label,
-          type: node.type as NodeType,
-          children: []
-        });
-      });
-
-      sourceData.links.forEach(link => {
-        OntologyManager.addLink(link.source, link.target, link.predicate);
-      });
-
-      updateDataFromManager();
-    } catch (error) {
-      console.error("Error loading graph data: ", error);
-      const fallbackNode: OntologyNode = {
-        id: "http://www.w3.org/2000/01/rdf-schema#Class",
-        label: "Class",
-        type: "class",
-        children: [],
-      };
-      OntologyManager.addNode(fallbackNode);
-      updateDataFromManager();
-    }
-  }, [updateDataFromManager]);
-
-
-  const buildTree = useCallback((nodes: OntologyNode[], links: RDFLink[]): OntologyNode | undefined => {
-    const nodeMap = new Map<string, OntologyNode>();
-    nodes.forEach(node => nodeMap.set(node.id, {...node, children: [] }));
-
-    links.forEach(link => {
-      const parent = nodeMap.get(link.source);
-      const child = nodeMap.get(link.target);
-      if (parent && child) parent.children!.push(child);
-    });
-
-    const rootNodes = nodes.filter(node => !links.some(l => l.target === node.id));
-    if (rootNodes.length > 1) {
-      return {
-        id: "virtual_root",
-        label: "Root",
-        type: "class",
-        children: rootNodes.map(node => nodeMap.get(node.id)!)
-      };
-    }
-
-    return nodeMap.get(rootNodes[0].id);
-  }, []);
-
-
-  const handleSaveGraph = useCallback(async () => {
-    if (isSaving) return; // Предотвращаем двойное нажатие
-
-    setIsSaving(true);
-    try {
-      const nodesToSave = nodes.map(({ children, ...rest }) => rest);
-      const graphData: GraphData = {
-        nodes: nodesToSave,
-        links: links,
-      };
-
-      console.log('Saving graph:', { nodes: nodesToSave.length, links: links.length });
-      const response = await postGraph(graphData);
-      console.log('Graph saved successfully:', response);
-
-      alert('Граф успешно сохранен!');
-
-      // Опционально: перезагрузить данные с сервера для синхронизации
-      // Раскомментируйте следующую строку, если нужна синхронизация
-      // await initializeData();
-
-    } catch (error: any) {
-      console.error('Ошибка при сохранении графа:', error);
-      const errorMessage = error?.response?.data?.detail || error?.message || 'Неизвестная ошибка';
-      alert(`Не удалось сохранить граф: ${errorMessage}`);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [nodes, links, isSaving]);
-
- const handleAddTriple = useCallback((
-    subjectLabel: string,
-    predicateLabel: string,
-    objectLabel: string
-  ) => {
-
-    const subject = OntologyManager.getNodeByLabel(subjectLabel);
-    const object = OntologyManager.getNodeByLabel(objectLabel);
-    console.log("subject", subject, "object", object)
-    if (!subject || !object) {
-      console.error("Не найдены узлы для субъекта или объекта");
-      return false;
-    }
-    if (predicateLabel === 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type') {
-      if (!subject.type) {
-        console.error("Субъект не имеет типа для наследования");
-        return false;
-      }
-
-      let type = 'literal';
-
-      if (subject.label === 'Class'){
-        type = 'class';
-      }
-
-      if (subject.label == 'Property') {
-        type = 'property';
-      }
-
-      const typeUpdated = OntologyManager.updateNodeType(object.id, type as NodeType);
-      if (!typeUpdated) {
-        console.error("Не удалось изменить тип объекта");
-        return false;
-      }
-
-    }
-    const linkAdded = OntologyManager.addLink(subject.id, object.id, predicateLabel);
-    if (linkAdded) {
-      updateDataFromManager();
-    return true;
-  }
-
-  }, [updateDataFromManager]);
-
-
-    const renderTree = useCallback(() => {
-      if (!nodes.length || !links.length) return;
-
-      const svgEl = svgRef.current;
-      if (!svgEl) return;
-
-      const svg = d3.select(svgEl);
-      svg.selectAll("*").remove();
-
-      const width = svgEl.clientWidth;
-      const height = svgEl.clientHeight;
-      const g = svg.append('g');
-
-      //console.log(nodes,links);
-      const hierarchyData = buildTree(nodes, links);
-
-      if (!hierarchyData) return;
-
-      const root = d3.hierarchy(hierarchyData);
-      const treeLayout = d3.tree<any>()
-        .size([height * 3, width * 0.7])
-        .separation(() => 1.5);
-
-      treeLayout(root);
-
-      // Стиль кнопок
-      const buttonStyle = {
-        width: 160,
-        height: 40,
-        rx: 8,
-        ry: 8,
-        fill: "#ffffffff",
-        stroke: "#000000ff",
-        strokeWidth: 1
-      };
-
-      // Создание кнопок
-      const createButton = (yPos: number, text: string, onClick: () => void, disabled = false) => {
-        const button = svg.append('g')
-          .attr("transform", `translate(20,${yPos})`)
-          .style("cursor", disabled ? "not-allowed" : "pointer")
-          .on("click", onClick);
-
-        if (disabled) {
-          button.style("pointer-events", "none");
-        }
-
-        button.on("mouseover", function() {
-            d3.select(this).select("rect").attr("fill", "#c08bdcff");
-          })
-          .on("mouseout", function() {
-            d3.select(this).select("rect").attr("fill", "#ffffffff");
-          });
-
-        button.append("rect")
-          .attr("width", buttonStyle.width)
-          .attr("height", buttonStyle.height)
-          .attr("rx", buttonStyle.rx)
-          .attr("ry", buttonStyle.ry)
-          .attr("fill", buttonStyle.fill)
-          .attr("stroke", buttonStyle.stroke)
-          .attr("stroke-width", buttonStyle.strokeWidth)
-          .attr("filter", "url(#button-shadow)");
-
-        const textElement = button.append("text")
-          .attr("x", buttonStyle.width / 2)
-          .attr("y", buttonStyle.height / 2 + 5)
-          .attr("text-anchor", "middle")
-          .attr("fill", "black")
-          .attr("font-size", "14px")
-          .attr("font-weight", "500");
-
-        if (isSaving && text === "Сохранить") {
-          textElement.text("Сохранение...");
-        } else {
-          textElement.text(text);
-        }
-      };
-
-      // Добавление кнопок
-      createButton(height - 80, "Создать новый", () => setShowMenu(true));
-      createButton(height - 130, "Сохранить", handleSaveGraph, isSaving);
-      createButton(height - 180, "Загрузить из файла", handleUploadClick);
-
-      // Добавление тени для кнопок
-      const defs = svg.append("defs");
-      const filter = defs.append("filter")
-        .attr("id", "button-shadow")
-        .attr("height", "130%")
-        .attr("width", "130%");
-
-      filter.append("feGaussianBlur")
-        .attr("in", "SourceAlpha")
-        .attr("stdDeviation", 2)
-        .attr("result", "blur");
-      filter.append("feOffset")
-        .attr("in", "blur")
-        .attr("dx", 1)
-        .attr("dy", 1)
-        .attr("result", "offsetBlur");
-
-      const feMerge = filter.append("feMerge");
-      feMerge.append("feMergeNode").attr("in", "offsetBlur");
-      feMerge.append("feMergeNode").attr("in", "SourceGraphic");
-
-      // Отрисовка связей
-      g.selectAll(".link")
-        .data(root.links() as d3.HierarchyPointLink<OntologyNode>[]) // Явно указываем тип
-        .enter()
-        .append("path")
-        .attr("class", styles.link)
-        .attr("d", d3.linkVertical<any, any>()
-          .x(d => d.x!)
-          .y(d => d.y!))
-        .attr("stroke-width", 1.5)
-        .each(function(d: d3.HierarchyPointLink<OntologyNode>) {
-          const source = d.source as d3.HierarchyPointNode<OntologyNode>;
-          const target = d.target as d3.HierarchyPointNode<OntologyNode>;
-          const midX = (source.x + target.x) / 2;
-          const midY = (source.y + target.y) / 2;
-
-          const linkData = links.find(l =>
-            l.source === source.data.id && l.target === target.data.id
-          );
-
-          if (linkData) {
-            const label = linkData.predicate.split(/[#\/]/).pop() || linkData.predicate;
-
-            // Создаем группу для метки
-            const labelGroup = g.append("g");
-
-            // Создаем временный текст для измерения размера
-            const tempText = labelGroup.append("text")
-              .attr("class", styles.linkLabel)
-              .attr("x", midX)
-              .attr("y", midY)
-              .attr("text-anchor", "middle")
-              .attr("dy", "-0.5em")
-              .text(label);
-
-            // Получаем размер текста
-            const bbox = (tempText.node() as SVGTextElement).getBBox();
-            const padding = 4;
-
-            // Добавляем фоновый прямоугольник ПЕРЕД текстом
-            labelGroup.insert("rect", "text")
-              .attr("class", styles.linkLabelBackground)
-              .attr("x", bbox.x - padding)
-              .attr("y", bbox.y - padding)
-              .attr("width", bbox.width + padding * 2)
-              .attr("height", bbox.height + padding * 2);
-          }
-        });
-
-      // Отрисовка узлов
-      const nodeGroups = g.selectAll(".node")
-        .data(root.descendants())
-        .enter()
-        .append("g")
-        .attr("class", (d: any) => `${styles.node} ${styles[d.data.type]}`)
-        .attr("transform", (d: any) => `translate(${d.x},${d.y})`);
-
-      nodeGroups.on("click", function(event, d: any) {
-        event.stopPropagation();
-        setSelectedNode(d.data);
-        setPopupPosition({ x: event.clientX, y: event.clientY });
-      });
-
-
-      nodeGroups.append("circle")
-        .attr("r", 20)
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 2);
-
-      nodeGroups.append("text")
-        .attr("dy", "0")
-        .attr("x", 0)
-        .attr("y", 35)
-        .style("text-anchor", "middle")
-        .style("fill", "#222")
-        .style("font-size", "12px")
-        .style("font-weight", "600")
-        .text((d: any) => d.data.label.length > 20
-          ? `${d.data.label.substring(0, 20)}...`
-          : d.data.label
-        );
-
-      // Добавление масштабирования
-      const zoom = d3.zoom<any, any>()
-        .scaleExtent([0.3, 3])
-        .on("zoom", (event) => {
-          g.attr("transform", event.transform);
-        });
-
-      svg.call(zoom)
-        .call(zoom.transform, d3.zoomIdentity.translate(width / 2, 60).scale(0.8));
-    }, [nodes, links, buildTree, handleUploadClick]);
-
-
+  // Хук для действий с графом (сохранение, добавление)
+  const { isSaving, handleSaveGraph, handleAddTriple } = useGraphActions(
+    nodes,
+    links,
+    updateDataFromManager
+  );
+
+  // Хук для загрузки файлов
+  const { handleFileUpload, handleUploadClick } = useFileUpload(
+    fileInputRef,
+    updateDataFromManager
+  );
+
+  // Хук для рендеринга графа
+  const { renderTree } = useGraphRenderer(
+    svgRef,
+    nodes,
+    links,
+    isSaving,
+    setSelectedNode,
+    setPopupPosition,
+    handleSaveGraph,
+    handleUploadClick,
+    setShowMenu
+  );
+
+  // Инициализация данных при монтировании
   useEffect(() => {
     initializeData();
     return () => {
-      if (svgRef.current) {
-        d3.select(svgRef.current).selectAll("*").remove();
+      const svgElement = svgRef.current;
+      if (svgElement) {
+        d3.select(svgElement).selectAll("*").remove();
       }
     };
   }, [initializeData]);
 
+  // Обновление данных из менеджера после инициализации
   useEffect(() => {
-    renderTree();
-  }, [nodes, links, renderTree, isSaving]);
-
-  useEffect(() => {
-  const handleClickOutside = (e: MouseEvent) => {
-    if (selectedNode && !(e.target as HTMLElement).closest(`.${styles.nodePopup}`)) {
-      setSelectedNode(null);
+    if (!isLoading && !loadError) {
+      updateDataFromManager();
     }
-  };
+  }, [isLoading, loadError]); // Убираем updateDataFromManager из зависимостей
 
-  document.addEventListener('click', handleClickOutside);
-  return () => document.removeEventListener('click', handleClickOutside);
-}, [selectedNode]);
+  // Рендеринг дерева при изменении узлов или связей
+  useEffect(() => {
+    if (nodes.length > 0) {
+      renderTree();
+    }
+  }, [nodes, links, isSaving]); // Убираем renderTree из зависимостей, но оставляем nodes и links
+
+  // Обработка клика вне popup
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectedNode && !(e.target as HTMLElement).closest(`.${styles.nodePopup}`)) {
+        setSelectedNode(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [selectedNode]);
+
+  // Обработчик добавления объекта
+  const handleAddObject = useCallback((objectLabel: string) => {
+    const newNode = {
+      label: objectLabel,
+      type: undefined as string | undefined,
+      children: [] as OntologyNode[]
+    };
+
+    OntologyManager.addNode(newNode as OntologyNode);
+    const updatedNodes = OntologyManager.getAllNodes();
+    setNodes(updatedNodes);
+    console.log('Все узлы после добавления:', updatedNodes);
+    return newNode;
+  }, []);
+
+  // Обработчик добавления предиката
+  const handleAddPredicate = useCallback((pred: string) => {
+    PredicateManager.registerPredicate(pred);
+    setPredicates(OntologyManager.getAvailablePredicates());
+  }, []);
 
   return (
     <div className={styles["graph-page"]}>
-        <input
+      <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileUpload}
         accept=".json,application/json"
         style={{ display: 'none' }}
       />
+      
+      {/* Индикатор загрузки */}
+      {isLoading && <LoadingSpinner />}
+
+      {/* Отображение ошибки */}
+      {loadError && !isLoading && (
+        <ErrorDisplay 
+          error={loadError}
+          onRetry={initializeData}
+          onUploadFile={handleUploadClick}
+        />
+      )}
+
       <div className={styles["graph-page__content"]}>
         <svg
           ref={svgRef}
           className={styles["graph-page__svg"]}
           width="100%"
           height="100%"
+          style={{ opacity: (isLoading || loadError) ? 0.3 : 1 }}
         />
       </div>
+
+      {/* Меню создания нового триплета */}
       {showMenu && (
         <NewTripleMenu
           onClose={() => setShowMenu(false)}
           predicates={predicates}
           subjects={nodes.map(n => n.label)}
           objects={nodes.map(n => n.label)}
-
-          onAddPredicate={(pred) => {
-            PredicateManager.registerPredicate(pred);
-            setPredicates(OntologyManager.getAvailablePredicates());
-            // TODO: добавить вызов метода для обновления данных (не надо)
-          }}
-
-          onAddObject={(objectLabel) => {
-            const newNode = {
-              label: objectLabel,
-              type: undefined,
-              children: []
-            };
-
-            OntologyManager.addNode(newNode as any);
-            const updatedNodes = OntologyManager.getAllNodes();
-            setNodes(updatedNodes);
-            // Запрос на сервер для обновления данных
-          // TODO: добавить вызов метода для обновления данных
-            console.log('Все узлы после добавления:', updatedNodes);
-            return newNode;
-           }}
+          onAddPredicate={handleAddPredicate}
+          onAddObject={handleAddObject}
           onAddTriple={handleAddTriple}
         />
       )}
 
+      {/* Popup узла */}
       {selectedNode && (
-      <NodePopup
-        node={selectedNode}
-        onClose={() => setSelectedNode(null)}
-        position={popupPosition}
-        onUpdate={updateDataFromManager}
-        setSelectedNode={setSelectedNode}
-      />
-    )}
+        <NodePopup
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+          position={popupPosition}
+          onUpdate={updateDataFromManager}
+          setSelectedNode={setSelectedNode}
+        />
+      )}
     </div>
   );
 };

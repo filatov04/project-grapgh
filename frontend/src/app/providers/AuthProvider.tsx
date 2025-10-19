@@ -1,9 +1,9 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '../../shared/types/authTypes';
-import { userModel } from '../../entities/user';
 import { authApi } from '../../shared/api';
-import { api } from '../../shared/api/customAxiosInstance';
+import { useAppDispatch, useAppSelector, loginSuccess, logout as logoutAction, setLoading } from '../../shared/store';
+import { store } from '../../shared/store/store';
 
 interface AuthContextType {
   user: User | null;
@@ -29,55 +29,51 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { user, isLoading, isAuthenticated, accessToken } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = userModel.getAccessToken();
-      const savedUser = userModel.getUser();
-
-      if (token && savedUser) {
-        // Добавляем токен к каждому запросу
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // Используем сохраненные данные пользователя
-        // Backend не предоставляет endpoint /auth/me, поэтому используем локальные данные
-        setUser(savedUser);
+      dispatch(setLoading(true));
+      
+      // Если нет токена - сразу завершаем загрузку
+      if (!accessToken) {
+        dispatch(setLoading(false));
+        return;
       }
       
-      setIsLoading(false);
+      // Если есть токен - валидация произойдет автоматически 
+      // при первом API-запросе через interceptor
+      dispatch(setLoading(false));
     };
 
     initAuth();
-  }, []);
+  }, [dispatch, accessToken]);
 
   const login = (user: User, accessToken: string, refreshToken: string) => {
-    setUser(user);
-    userModel.saveUser(user);
-    userModel.saveTokens(accessToken, refreshToken);
-    api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+    dispatch(loginSuccess({ user, accessToken, refreshToken }));
   };
 
   const logout = async () => {
     try {
-      const refreshToken = userModel.getRefreshToken();
+      // Получаем refreshToken напрямую из store
+      const state = store.getState();
+      const refreshToken = state.auth.refreshToken;
+      
       if (refreshToken) {
         await authApi.logout(refreshToken);
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      setUser(null);
-      userModel.clearAuth();
-      delete api.defaults.headers.common['Authorization'];
+      dispatch(logoutAction());
     }
   };
 
   const value = {
     user,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated,
     login,
     logout,
   };
