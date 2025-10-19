@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 
 interface FileHTMLToStringProps {
-  onFileRead: (content: string) => void;
+  onFileRead: (content: string, filename?: string) => void;
 }
 
 const FileHTMLToString: React.FC<FileHTMLToStringProps> = ({ onFileRead }) => {
@@ -33,7 +33,8 @@ const FileHTMLToString: React.FC<FileHTMLToStringProps> = ({ onFileRead }) => {
     reader.onload = () => {
       setProgress(100);
       if (typeof reader.result === 'string') {
-        onFileRead(reader.result);
+        // Передаем содержимое файла и его имя
+        onFileRead(reader.result, file.name);
       }
     };
     reader.onerror = () => {

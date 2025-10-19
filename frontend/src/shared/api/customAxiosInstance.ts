@@ -4,10 +4,13 @@ import { logout as logoutAction, updateTokens, updateUser } from '../store/authS
 
 // В production (Docker) используется относительный путь, который проксируется nginx на backend контейнер
 // В development можно переопределить через VITE_API_URL для прямого обращения к backend
-const baseURL = import.meta.env.VITE_API_URL || '/api/v1';
+// Для локальной разработки определяем URL бэкенда автоматически
+const isDevelopment = import.meta.env.DEV;
+const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? 'http://localhost:80/api/v1' : '/api/v1');
 
-// console.log('customAxiosInstance: Base URL is', baseURL);
-// console.log('customAxiosInstance: VITE_API_URL env var is', import.meta.env.VITE_API_URL);
+console.log('customAxiosInstance: Base URL is', baseURL);
+console.log('customAxiosInstance: Development mode:', isDevelopment);
+console.log('customAxiosInstance: VITE_API_URL env var is', import.meta.env.VITE_API_URL);
 
 const customAxiosInstance = axios.create({
   baseURL,

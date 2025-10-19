@@ -60,16 +60,33 @@ class CompetencyDAO:
         config: Config = Depends(wiring.Provide["config"])
     ) -> dict:
         """
-        Получает весь граф из GraphDB
+        Получает весь граф из GraphDB (только пользовательские данные, без системных RDF/RDFS)
         """
         prefixes = cls._prefix_str(config)
 
-        # Используем SELECT вместо CONSTRUCT для получения данных в JSON
+        # Фильтруем системные триплеты RDF/RDFS/OWL
+        # Получаем только данные, которые НЕ относятся к системным namespace
         query = f"""
         {prefixes}
         SELECT ?s ?p ?o
         WHERE {{
             ?s ?p ?o .
+            # Исключаем системные namespace RDF, RDFS, OWL
+            FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+            FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2000/01/rdf-schema#"))
+            FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2002/07/owl#"))
+            FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/XML/1998/namespace"))
+            FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2001/XMLSchema#"))
+            FILTER (!STRSTARTS(STR(?s), "http://proton.semanticweb.org/protonsys#"))
+            
+            # Также исключаем если предикат - системный rdf:type с системными классами
+            FILTER (
+                !(?p = rdf:type && (
+                    STRSTARTS(STR(?o), "http://www.w3.org/1999/02/22-rdf-syntax-ns#") ||
+                    STRSTARTS(STR(?o), "http://www.w3.org/2000/01/rdf-schema#") ||
+                    STRSTARTS(STR(?o), "http://www.w3.org/2002/07/owl#")
+                ))
+            )
         }}
         """
 
@@ -81,22 +98,29 @@ class CompetencyDAO:
         # Преобразование в нужный формат
         nodes_dict = {}
         links = []
+        predicates_set = set()  # Собираем все предикаты
 
+        # Первый проход - собираем предикаты
+        for binding in data["results"]["bindings"]:
+            p = binding["p"]["value"]
+            predicates_set.add(p)
+
+        # Второй проход - собираем узлы и связи
         for binding in data["results"]["bindings"]:
             s = binding["s"]["value"]
             p = binding["p"]["value"]
             o = binding["o"]["value"]
 
-            # Добавляем субъект как узел
-            if s not in nodes_dict:
+            # Добавляем субъект как узел (если это не предикат)
+            if s not in nodes_dict and s not in predicates_set:
                 nodes_dict[s] = {
                     "id": s,
                     "label": s.split("#")[-1].split("/")[-1],
                     "type": "class"
                 }
 
-            # Если объект - URI, добавляем как узел
-            if binding["o"]["type"] == "uri" and o not in nodes_dict:
+            # Если объект - URI, добавляем как узел (если это не предикат)
+            if binding["o"]["type"] == "uri" and o not in nodes_dict and o not in predicates_set:
                 nodes_dict[o] = {
                     "id": o,
                     "label": o.split("#")[-1].split("/")[-1],
@@ -117,6 +141,19 @@ class CompetencyDAO:
         }
 
     @classmethod
+    def _is_system_uri(cls, uri: str) -> bool:
+        """Проверяет, является ли URI системным (RDF/RDFS/OWL)"""
+        system_namespaces = [
+            "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "http://www.w3.org/2000/01/rdf-schema#",
+            "http://www.w3.org/2002/07/owl#",
+            "http://www.w3.org/XML/1998/namespace",
+            "http://www.w3.org/2001/XMLSchema#",
+            "http://proton.semanticweb.org/protonsys#"
+        ]
+        return any(uri.startswith(ns) for ns in system_namespaces)
+
+    @classmethod
     async def save_graph_to_db(
         cls,
         graph_data: dict,
@@ -124,6 +161,7 @@ class CompetencyDAO:
     ) -> bool:
         """
         Сохраняет граф в GraphDB через прямой HTTP запрос
+        Фильтрует системные RDF/RDFS/OWL узлы и связи
         """
         type_map = {
             "class": "http://www.w3.org/2000/01/rdf-schema#Class",
@@ -136,10 +174,18 @@ class CompetencyDAO:
 
         successful = 0
         total = 0
+        skipped_system = 0
 
         # Обрабатываем узлы
         for node in graph_data.get("nodes", []):
             node_uri = node["id"]
+            
+            # Пропускаем системные URI
+            if cls._is_system_uri(node_uri):
+                logger.info(f"Skipping system URI: {node_uri}")
+                skipped_system += 1
+                continue
+            
             # Проверяем, что URI валидный (начинается с http:// или https://)
             if not node_uri.startswith(("http://", "https://")):
                 logger.warning(f"Skipping invalid URI: {node_uri} (must start with http:// or https://)")
@@ -173,6 +219,12 @@ class CompetencyDAO:
             source = link['source']
             predicate = link['predicate']
             target = link['target']
+
+            # Пропускаем связи с системными URI
+            if cls._is_system_uri(source) or cls._is_system_uri(target) or cls._is_system_uri(predicate):
+                logger.info(f"Skipping system link: {source} -> {target} ({predicate})")
+                skipped_system += 1
+                continue
 
             # Проверяем, что все URI валидные (начинаются с http:// или https://)
             if not source.startswith(("http://", "https://")):
@@ -208,7 +260,7 @@ class CompetencyDAO:
 
             total += 1
 
-        logger.info(f"Saved graph to GraphDB: {successful}/{total} successful")
+        logger.info(f"Saved graph to GraphDB: {successful}/{total} successful, {skipped_system} system URIs skipped")
         return successful > 0
 
     @classmethod

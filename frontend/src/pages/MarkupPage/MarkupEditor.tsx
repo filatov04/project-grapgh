@@ -103,15 +103,21 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [subjects, setSubjects] = useState<string[]>(MOCK_SUBJECTS);
   const [predicates, setPredicates] = useState<string[]>(MOCK_PREDICATES);
+  const [currentFilename, setCurrentFilename] = useState<string>('');
   const textContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleFileRead = async (content: string) => {
+  const handleFileRead = async (content: string, filename?: string) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
     setRawHtml(doc.body.innerHTML);
     setComments([]);
     setSelection(null);
     setHoveredComment(null);
+    setSaveSuccess(false);
+
+    // Генерируем filename если не предоставлен (используем timestamp или хеш)
+    const fileIdentifier = filename || `file_${Date.now()}`;
+    setCurrentFilename(fileIdentifier);
 
     // Загружаем subjects и predicates через getGraph
     try {
@@ -129,13 +135,23 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
       setPredicates(MOCK_PREDICATES);
     }
 
+    // Загружаем существующие комментарии для этого файла
     try {
-      const { data: loadedComments } = await getMarkup('testHash');
-      const sortedComments = loadedComments.sort((a: CommentInterface, b: CommentInterface) => a.startIndex - b.startIndex);
-      setComments(sortedComments);
-      console.log('Загруженные комментарии:', sortedComments);
-    } catch (error) {
-      console.error('Не удалось загрузить разметку:', error);
+      const { data: loadedComments } = await getMarkup(fileIdentifier);
+      if (Array.isArray(loadedComments) && loadedComments.length > 0) {
+        const sortedComments = loadedComments.sort((a: CommentInterface, b: CommentInterface) => a.startIndex - b.startIndex);
+        setComments(sortedComments);
+        console.log('Загруженные комментарии:', sortedComments);
+      } else {
+        console.log('Комментарии для файла не найдены, начинаем с пустого списка');
+      }
+    } catch (error: any) {
+      // Если комментарии не найдены (404), это нормально для нового файла
+      if (error.response?.status === 404) {
+        console.log('Файл новый, комментариев пока нет');
+      } else {
+        console.error('Ошибка при загрузке разметки:', error);
+      }
     }
   };
 
@@ -206,21 +222,20 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
     subject: string,
     predicate: string
   ): void => {
-    if (!selection) return;
+    if (!selection || !currentFilename) return;
 
     const objectText = textContainerRef.current?.textContent?.substring(selection.startIndex, selection.endIndex) || '';
 
-    // TODO: get filename from file
     const newComment: CommentInterface = {
-      id: Date.now(),
+      id: Date.now(), // Временный ID, будет заменен бэкендом
       startIndex: selection.startIndex,
       endIndex: selection.endIndex,
       subject,
       predicate,
       object: objectText,
-      filename: 'testHash',
+      filename: currentFilename,
       createdAt: new Date().toISOString(),
-      author: 'test',
+      author: '', // Автоматически заполнится на бэкенде из JWT токена
     };
 
     setComments((prevComments) => {
@@ -234,16 +249,65 @@ const MarkupEditor: FC<MarkupEditorProps> = () => {
   };
 
   const handleSaveMarkup = async () => {
+    if (!currentFilename) {
+      alert('Сначала загрузите файл');
+      return;
+    }
+
+    if (comments.length === 0) {
+      alert('Нет комментариев для сохранения');
+      return;
+    }
+
     setIsSaving(true);
     setSaveSuccess(false);
     try {
-      // fileHash можно получить из пропсов или состояния, здесь пример с 'testHash'
-      await postMarkup('testHash', comments);
-      setSaveSuccess(true);
-    } catch (e) {
+      // Отправляем только новые комментарии (без id или с временным id)
+      const commentsToSave = comments
+        .filter(c => !c.id || c.id > 1000000000000)
+        .map(c => ({
+          filename: c.filename,
+          startIndex: c.startIndex,
+          endIndex: c.endIndex,
+          subject: c.subject,
+          predicate: c.predicate,
+          object: c.object,
+          // Не отправляем id, author и createdAt - они будут установлены бэкендом
+        }));
+      
+      console.log('Комментарии для сохранения:', commentsToSave);
+      
+      if (commentsToSave.length > 0) {
+        const { data: savedComments } = await postMarkup(commentsToSave);
+        
+        // Обновляем комментарии с реальными ID от бэкенда
+        setComments(prevComments => {
+          const updatedComments = [...prevComments];
+          const tempComments = prevComments.filter(c => !c.id || c.id > 1000000000000);
+          
+          tempComments.forEach((tempComment, index) => {
+            const idx = updatedComments.findIndex(c => c.id === tempComment.id);
+            if (idx !== -1 && savedComments[index]) {
+              updatedComments[idx] = savedComments[index];
+            }
+          });
+          return updatedComments.sort((a, b) => a.startIndex - b.startIndex);
+        });
+        
+        setSaveSuccess(true);
+        console.log('Разметка успешно сохранена:', savedComments);
+      } else {
+        alert('Все комментарии уже сохранены');
+      }
+    } catch (e: any) {
       setSaveSuccess(false);
-      alert('Ошибка при сохранении разметки');
       console.error('Ошибка при сохранении разметки:', e);
+      console.error('Response data:', e.response?.data);
+      console.error('Response status:', e.response?.status);
+      
+      // Показываем более детальную информацию об ошибке
+      const errorMessage = e.response?.data?.detail || e.message || 'Неизвестная ошибка';
+      alert(`Ошибка при сохранении разметки: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }

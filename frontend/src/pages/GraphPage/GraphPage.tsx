@@ -30,14 +30,23 @@ const GraphPage: React.FC = () => {
   // Функция обновления данных из менеджера
   // Используем useCallback без зависимостей для стабильности ссылки
   const updateDataFromManager = useCallback(() => {
+    console.log('GraphPage: updateDataFromManager called');
     const allNodes = OntologyManager.getAllNodes();
     const allLinks = OntologyManager.getAllLinks();
     const allPredicates = OntologyManager.getAvailablePredicates();
+    
+    console.log('GraphPage: Data from manager:', { 
+      nodes: allNodes.length, 
+      links: allLinks.length, 
+      predicates: allPredicates.length 
+    });
     
     // Просто обновляем состояние - React оптимизирует это
     setNodes(allNodes);
     setLinks(allLinks);
     setPredicates(allPredicates);
+    
+    console.log('GraphPage: State updated');
   }, []);
 
   // Хук для действий с графом (сохранение, добавление)
@@ -68,28 +77,38 @@ const GraphPage: React.FC = () => {
 
   // Инициализация данных при монтировании
   useEffect(() => {
+    console.log('GraphPage: Component mounted, initializing data...');
     initializeData();
+    
     return () => {
+      console.log('GraphPage: Component unmounting, cleaning up...');
       const svgElement = svgRef.current;
       if (svgElement) {
         d3.select(svgElement).selectAll("*").remove();
       }
     };
-  }, [initializeData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Выполняется только при монтировании/размонтировании
 
-  // Обновление данных из менеджера после инициализации
+  // Обновление данных из менеджера после завершения загрузки
   useEffect(() => {
+    console.log('GraphPage: Loading state changed', { isLoading, loadError });
     if (!isLoading && !loadError) {
+      console.log('GraphPage: Loading complete, updating data from manager...');
       updateDataFromManager();
     }
-  }, [isLoading, loadError]); // Убираем updateDataFromManager из зависимостей
+  }, [isLoading, loadError, updateDataFromManager]);
 
   // Рендеринг дерева при изменении узлов или связей
   useEffect(() => {
+    console.log('GraphPage: Render effect triggered. Nodes:', nodes.length, 'Links:', links.length);
     if (nodes.length > 0) {
+      console.log('GraphPage: Calling renderTree...');
       renderTree();
+    } else {
+      console.log('GraphPage: No nodes to render');
     }
-  }, [nodes, links, isSaving]); // Убираем renderTree из зависимостей, но оставляем nodes и links
+  }, [nodes, links, isSaving, renderTree]); // Убираем renderTree из зависимостей, но оставляем nodes и links
 
   // Обработка клика вне popup
   useEffect(() => {
@@ -106,12 +125,13 @@ const GraphPage: React.FC = () => {
   // Обработчик добавления объекта
   const handleAddObject = useCallback((objectLabel: string) => {
     const newNode = {
+      id: OntologyManager.generateNodeId(objectLabel),  // Генерируем валидный URI
       label: objectLabel,
-      type: undefined as string | undefined,
+      type: 'class' as const,
       children: [] as OntologyNode[]
     };
 
-    OntologyManager.addNode(newNode as OntologyNode);
+    OntologyManager.addNode(newNode);
     const updatedNodes = OntologyManager.getAllNodes();
     setNodes(updatedNodes);
     console.log('Все узлы после добавления:', updatedNodes);
@@ -120,6 +140,7 @@ const GraphPage: React.FC = () => {
 
   // Обработчик добавления предиката
   const handleAddPredicate = useCallback((pred: string) => {
+    // registerPredicate автоматически преобразует в URI
     PredicateManager.registerPredicate(pred);
     setPredicates(OntologyManager.getAvailablePredicates());
   }, []);

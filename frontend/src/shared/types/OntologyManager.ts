@@ -164,16 +164,18 @@ public getAvailablePredicates(): string[] {
   }
 
   public generateNodeId(label: string): string {
-    const baseId = label.replace(/\s+/g, '_');
-    let id = baseId;
+    // Генерируем валидный URI для RDF
+    const namespace = 'http://example.org/competencies#';
+    const baseId = label.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '_');
+    let fullUri = namespace + baseId;
     let counter = 1;
     
-    while (this.nodes.has(id)) {
-      id = `${baseId}_${counter}`;
+    while (this.nodes.has(fullUri)) {
+      fullUri = `${namespace}${baseId}_${counter}`;
       counter++;
     }
     
-    return id;
+    return fullUri;
   }
 
   public getPrefixFromUri(uri: string): string {
@@ -181,7 +183,8 @@ public getAvailablePredicates(): string[] {
       'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf:',
       'http://www.w3.org/2000/01/rdf-schema#': 'rdfs:',
       'http://www.w3.org/2002/07/owl#': 'owl:',
-      'http://purl.org/dc/elements/1.1/': 'dc:'
+      'http://purl.org/dc/elements/1.1/': 'dc:',
+      'http://example.org/competencies#': ''  // Для наших компетенций показываем без префикса
     };
     for (const [baseUri, prefix] of Object.entries(knownPrefixes)) {
       if (uri.startsWith(baseUri)) {

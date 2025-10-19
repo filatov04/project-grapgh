@@ -19,9 +19,23 @@ class PredicateManager {
     this.predicates.clear();
     
   }
+  
+    public generatePredicateUri(label: string): string {
+        // Если уже полный URI - возвращаем как есть
+        if (label.startsWith('http://') || label.startsWith('https://')) {
+            return label;
+        }
+        // Генерируем валидный URI для предиката
+        const namespace = 'http://example.org/competencies#';
+        const cleanLabel = label.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '_');
+        return namespace + cleanLabel;
+    }
+    
     public registerPredicate(predicate: string): void {
-        if (!this.predicates.has(predicate)) {
-            this.predicates.add(predicate);
+        // Преобразуем в URI если это не URI
+        const predicateUri = this.generatePredicateUri(predicate);
+        if (!this.predicates.has(predicateUri)) {
+            this.predicates.add(predicateUri);
         }
     }
 

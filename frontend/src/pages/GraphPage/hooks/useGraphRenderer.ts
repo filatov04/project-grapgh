@@ -16,9 +16,12 @@ export const useGraphRenderer = (
   setShowMenu: (show: boolean) => void
 ) => {
   const buildTree = useCallback((nodes: OntologyNode[], links: RDFLink[]): OntologyNode | undefined => {
+    console.log('buildTree: Building tree with', nodes.length, 'nodes and', links.length, 'links');
+    
     // Создаем копии узлов без циклических ссылок
     const nodeMap = new Map<string, OntologyNode>();
     nodes.forEach(node => {
+      console.log('buildTree: Creating node map entry for', node.id, node.label);
       nodeMap.set(node.id, {
         id: node.id,
         label: node.label,
@@ -37,14 +40,8 @@ export const useGraphRenderer = (
       // Проверяем что parent и child существуют и связь еще не добавлена
       const linkKey = `${link.source}->${link.target}`;
       if (parent && child && !addedChildren.has(linkKey)) {
-        // Создаем копию child без циклических ссылок
-        const childCopy: OntologyNode = {
-          id: child.id,
-          label: child.label,
-          type: child.type,
-          children: [] // Важно: создаем новый массив для детей
-        };
-        parent.children!.push(childCopy);
+        // Используем ссылку на оригинальный узел, чтобы сохранить всех его детей
+        parent.children!.push(child);
         addedChildren.add(linkKey);
       }
     });
@@ -54,19 +51,31 @@ export const useGraphRenderer = (
     
     if (rootNodes.length === 0) {
       console.warn('No root nodes found, possible cyclic graph');
-      // Если нет корневых узлов, берем первый узел
-      return nodeMap.get(nodes[0]?.id);
+      console.log('Creating virtual root for all nodes');
+      const allNodes = Array.from(nodeMap.values());
+      console.log('buildTree: Virtual root will have', allNodes.length, 'children');
+      console.log('buildTree: Children labels:', allNodes.map(n => n.label));
+      // Если нет корневых узлов (циклический граф), создаем виртуальный корень
+      // и добавляем все узлы как его детей
+      return {
+        id: "virtual_root",
+        label: "Граф",
+        type: "class",
+        children: allNodes
+      };
     }
     
     if (rootNodes.length > 1) {
+      console.log('Multiple root nodes found:', rootNodes.length);
       return {
         id: "virtual_root",
-        label: "Root",
+        label: "Корень",
         type: "class",
         children: rootNodes.map(node => nodeMap.get(node.id)!).filter(Boolean)
       };
     }
 
+    console.log('Single root node found:', rootNodes[0].label);
     return nodeMap.get(rootNodes[0].id);
   }, []);
 
@@ -105,7 +114,12 @@ export const useGraphRenderer = (
       return;
     }
 
+    console.log('renderTree: hierarchyData:', hierarchyData);
+    console.log('renderTree: hierarchyData has', hierarchyData.children?.length || 0, 'children');
+
     const root = d3.hierarchy(hierarchyData);
+    console.log('renderTree: d3.hierarchy created, descendants:', root.descendants().length);
+    
     const treeLayout = d3.tree<any>()
       .size([height * 3, width * 0.7])
       .separation(() => 1.5);
@@ -242,8 +256,12 @@ export const useGraphRenderer = (
       });
 
     // Отрисовка узлов
+    const descendants = root.descendants();
+    console.log('renderTree: Rendering', descendants.length, 'node elements');
+    console.log('renderTree: Node labels to render:', descendants.map(d => d.data.label));
+    
     const nodeGroups = g.selectAll(".node")
-      .data(root.descendants())
+      .data(descendants)
       .enter()
       .append("g")
       .attr("class", (d: any) => `${styles.node} ${styles[d.data.type]}`)

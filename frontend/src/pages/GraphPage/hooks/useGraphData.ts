@@ -7,14 +7,20 @@ export const useGraphData = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const initializeData = useCallback(async () => {
+    console.log('useGraphData: Starting initializeData...');
     setIsLoading(true);
     setLoadError(null);
+    
+    console.log('useGraphData: Clearing OntologyManager...');
     OntologyManager.clear();
+    console.log('useGraphData: OntologyManager cleared. Current nodes:', OntologyManager.getAllNodes().length);
     
     try {
+      console.log('useGraphData: Fetching graph from server...');
       const response = await getGraph();
       const data = response.data;
-      console.log('Данные получены с сервера:', data);
+      console.log('useGraphData: Данные получены с сервера:', data);
+      console.log('useGraphData: Nodes from server:', data.nodes?.length, 'Links:', data.links?.length);
 
       // Проверяем что данные корректны
       if (!data || !data.nodes || !Array.isArray(data.nodes) || !data.links || !Array.isArray(data.links)) {
@@ -25,8 +31,8 @@ export const useGraphData = () => {
       if (data.nodes.length === 0 && data.links.length === 0) {
         console.log('Граф пуст - создаём начальный узел');
         const fallbackNode: OntologyNode = {
-          id: "http://www.w3.org/2000/01/rdf-schema#Class",
-          label: "Class",
+          id: "http://example.org/competencies#StartNode",
+          label: "Начальный узел",
           type: "class",
           children: [],
         };
@@ -36,6 +42,8 @@ export const useGraphData = () => {
       }
 
       // Загружаем данные с сервера
+      console.log('useGraphData: Adding nodes to OntologyManager...');
+      
       data.nodes.forEach(node => {
         OntologyManager.addNode({
           id: node.id,
@@ -45,10 +53,14 @@ export const useGraphData = () => {
         });
       });
 
+      console.log('useGraphData: Adding links to OntologyManager...');
+      
       data.links.forEach(link => {
         OntologyManager.addLink(link.source, link.target, link.predicate);
       });
 
+      console.log('useGraphData: Data loaded successfully. Total nodes in manager:', OntologyManager.getAllNodes().length);
+      console.log('useGraphData: Total links in manager:', OntologyManager.getAllLinks().length);
       setIsLoading(false);
     } catch (error) {
       console.error('Ошибка при загрузке графа с сервера:', error);
