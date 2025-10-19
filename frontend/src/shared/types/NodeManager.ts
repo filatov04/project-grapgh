@@ -4,8 +4,8 @@ import type { RDFLink } from "./graphTypes";
 export type OntologyNode = {
   id: string;
   label: string;
-  type: 'class' | 'property' | 'instance';
-  children?: OntologyNode[]; 
+  type: 'class' | 'property' | 'literal';
+  children?: OntologyNode[];
 };
 
 class OntologyManager {
@@ -32,7 +32,7 @@ class OntologyManager {
     PredicateManager.clear();
   }
 
-  
+
   public addNode(node: OntologyNode): OntologyNode {
     if (!this.nodes.has(node.id)) {
       this.nodes.set(node.id, node);
@@ -77,12 +77,12 @@ class OntologyManager {
     const baseId = label.replace(/\s+/g, '_');
     let id = baseId;
     let counter = 1;
-    
+
     while (this.nodes.has(id)) {
       id = `${baseId}_${counter}`;
       counter++;
     }
-    
+
     return id;
   }
 }

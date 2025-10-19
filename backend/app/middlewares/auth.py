@@ -32,6 +32,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             self._token_service = TokenService(self._redis_client, self._config)
 
     async def dispatch(self, request: Request, call_next):
+        # Пропускаем OPTIONS запросы (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Пропускаем некоторые пути без аутентификации
         if self._should_skip_auth(request.url.path):
             return await call_next(request)

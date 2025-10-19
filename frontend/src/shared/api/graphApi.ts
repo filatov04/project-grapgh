@@ -8,11 +8,11 @@ interface GraphData {
 }
 
 const postGraph = async (graphData: GraphData) => {
-  return api.post('/graph', graphData);
+  return api.post('/competencies/graph', graphData);
 }
 
 const getGraph = async () => {
-  return api.get<GraphData>('/graph');
+  return api.get<GraphData>('/competencies/graph');
 }
 
 export { postGraph, getGraph };

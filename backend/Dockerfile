@@ -30,7 +30,6 @@ COPY app/ /app/
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-EXPOSE 8000
+EXPOSE 80
 
 CMD ["python", "main.py"]
-

@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: CompetencyGraph-Web
     ports:
-      - "8080:80"
+      - "5173:5173"
     restart: unless-stopped
     networks:
       - app-network
@@ -13,4 +13,3 @@ services:
 networks:
   app-network:
     driver: bridge
-

@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: CompetencyGraph-Backend
     ports:
-      - "8000:8000"
+      - "80:80"
     depends_on:
       graphdb:
         condition: service_healthy
@@ -19,7 +19,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/docs"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,7 +31,7 @@ services:
       dockerfile: Dockerfile
     container_name: CompetencyGraph-Frontend
     ports:
-      - "80:80"
+      - "5173:5173"
     depends_on:
       backend:
         condition: service_healthy
@@ -117,4 +117,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-

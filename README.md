@@ -41,9 +41,9 @@ docker-compose down -v
 
 ## Доступ к сервисам
 
-- **Frontend**: http://localhost (порт 80)
-- **Backend API**: http://localhost/api/v1
-- **API Documentation**: http://localhost/api/v1/docs
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:80/api/v1
+- **API Documentation**: http://localhost:80/docs
 - **GraphDB**: http://localhost:7200
 - **PostgreSQL**: localhost:5432
 - **Redis**: localhost:6379
@@ -129,10 +129,11 @@ docker-compose ps
 
 ### Проблемы с портами
 
-Убедитесь, что порты 80, 5432, 6379 и 7200 не заняты другими приложениями:
+Убедитесь, что порты 80, 5173, 5432, 6379 и 7200 не заняты другими приложениями:
 
 ```bash
 lsof -i :80
+lsof -i :5173
 lsof -i :5432
 lsof -i :6379
 lsof -i :7200
@@ -146,4 +147,3 @@ docker-compose down
 docker-compose build --no-cache
 docker-compose up -d
 ```
-

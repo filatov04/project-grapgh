@@ -7,7 +7,7 @@ class NodeType(str, Enum):
     """Тип узла в онтологии"""
     CLASS = 'class'
     PROPERTY = 'property'
-    INSTANCE = 'instance'
+    LITERAL = 'literal'
 
 
 class OntologyNode(BaseModel):
@@ -49,4 +49,3 @@ class GraphResponse(BaseModel):
     """Граф в формате, который принимает/отдаёт фронтенд"""
     nodes: List[RDFNode]
     links: List[RDFLink]
-
