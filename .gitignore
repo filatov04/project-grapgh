@@ -41,3 +41,8 @@ logs/
 *.tmp
 *.bak
 
+# Node.js files in root (should only be in frontend/)
+/package-lock.json
+/node_modules/
+/package.json
+
