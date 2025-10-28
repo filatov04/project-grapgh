@@ -36,10 +36,17 @@ async def save_graph(request: Request, graph_data: dict = Body(...)) -> dict:
         # Проверяем узлы
         valid_nodes = []
         for node in nodes:
-            if node.get("id", "").startswith(("http://", "https://")):
+            node_id = node.get("id", "")
+            
+            # Проверяем, что это не системный URI
+            if CompetencyDAO._is_system_uri(node_id):
+                logger.debug(f"Skipping system node at API level: {node_id}")
+                continue
+                
+            if node_id.startswith(("http://", "https://")):
                 valid_nodes.append(node)
             else:
-                logger.warning(f"Skipping invalid node URI: {node.get('id', '')}")
+                logger.warning(f"Skipping invalid node URI: {node_id}")
 
         # Проверяем связи
         valid_links = []
@@ -47,6 +54,13 @@ async def save_graph(request: Request, graph_data: dict = Body(...)) -> dict:
             source = link.get("source", "")
             predicate = link.get("predicate", "")
             target = link.get("target", "")
+
+            # Проверяем, что это не системные URI
+            if (CompetencyDAO._is_system_uri(source) or 
+                CompetencyDAO._is_system_uri(predicate) or 
+                CompetencyDAO._is_system_uri(target)):
+                logger.debug(f"Skipping system link at API level: {source} -> {target} (predicate: {predicate})")
+                continue
 
             if (source.startswith(("http://", "https://")) and
                 predicate.startswith(("http://", "https://")) and

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { postGraph, type GraphData } from '../../../shared/api/graphApi';
 import OntologyManager, { type OntologyNode, type NodeType } from '../../../shared/types/OntologyManager';
+import PredicateManager from '../../../shared/types/PredicateManager';
 import type { RDFLink } from '../../../shared/types/graphTypes';
 
 export const useGraphActions = (
@@ -72,7 +73,9 @@ export const useGraphActions = (
       }
     }
     
-    const linkAdded = OntologyManager.addLink(subject.id, object.id, predicateLabel);
+    // Преобразуем предикат в URI перед добавлением связи
+    const predicateUri = PredicateManager.generatePredicateUri(predicateLabel);
+    const linkAdded = OntologyManager.addLink(subject.id, object.id, predicateUri);
     if (linkAdded) {
       updateDataFromManager();
       return true;

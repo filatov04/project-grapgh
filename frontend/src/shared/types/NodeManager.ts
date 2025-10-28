@@ -74,12 +74,14 @@ class OntologyManager {
   }
 
   public generateNodeId(label: string): string {
-    const baseId = label.replace(/\s+/g, '_');
-    let id = baseId;
+    // Создаем валидный URI для узла
+    const namespace = 'http://example.org/competencies#';
+    const cleanLabel = label.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '_');
+    let id = namespace + cleanLabel;
     let counter = 1;
 
     while (this.nodes.has(id)) {
-      id = `${baseId}_${counter}`;
+      id = `${namespace}${cleanLabel}_${counter}`;
       counter++;
     }
 

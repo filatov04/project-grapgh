@@ -71,7 +71,7 @@ class CompetencyDAO:
         SELECT ?s ?p ?o
         WHERE {{
             ?s ?p ?o .
-            # Исключаем системные namespace RDF, RDFS, OWL
+            # Исключаем системные namespace для субъектов
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2000/01/rdf-schema#"))
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2002/07/owl#"))
@@ -79,12 +79,23 @@ class CompetencyDAO:
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2001/XMLSchema#"))
             FILTER (!STRSTARTS(STR(?s), "http://proton.semanticweb.org/protonsys#"))
             
-            # Также исключаем если предикат - системный rdf:type с системными классами
+            # Исключаем системные namespace для предикатов
+            FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+            FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/2000/01/rdf-schema#"))
+            FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/2002/07/owl#"))
+            FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/XML/1998/namespace"))
+            FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/2001/XMLSchema#"))
+            FILTER (!STRSTARTS(STR(?p), "http://proton.semanticweb.org/protonsys#"))
+            
+            # Исключаем системные namespace для объектов (только если это URI)
             FILTER (
-                !(?p = rdf:type && (
+                !(isURI(?o) && (
                     STRSTARTS(STR(?o), "http://www.w3.org/1999/02/22-rdf-syntax-ns#") ||
                     STRSTARTS(STR(?o), "http://www.w3.org/2000/01/rdf-schema#") ||
-                    STRSTARTS(STR(?o), "http://www.w3.org/2002/07/owl#")
+                    STRSTARTS(STR(?o), "http://www.w3.org/2002/07/owl#") ||
+                    STRSTARTS(STR(?o), "http://www.w3.org/XML/1998/namespace") ||
+                    STRSTARTS(STR(?o), "http://www.w3.org/2001/XMLSchema#") ||
+                    STRSTARTS(STR(?o), "http://proton.semanticweb.org/protonsys#")
                 ))
             )
         }}
@@ -182,7 +193,7 @@ class CompetencyDAO:
             
             # Пропускаем системные URI
             if cls._is_system_uri(node_uri):
-                logger.info(f"Skipping system URI: {node_uri}")
+                logger.debug(f"Skipping system URI: {node_uri}")
                 skipped_system += 1
                 continue
             
@@ -222,7 +233,7 @@ class CompetencyDAO:
 
             # Пропускаем связи с системными URI
             if cls._is_system_uri(source) or cls._is_system_uri(target) or cls._is_system_uri(predicate):
-                logger.info(f"Skipping system link: {source} -> {target} ({predicate})")
+                logger.debug(f"Skipping system link: {source} -> {target} ({predicate})")
                 skipped_system += 1
                 continue
 
