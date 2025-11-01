@@ -184,6 +184,18 @@ export const useGraphRenderer = (
     createButton(height - 80, "Создать новый", () => setShowMenu(true));
     createButton(height - 130, "Сохранить", handleSaveGraph, isSaving);
     createButton(height - 180, "Загрузить из файла", handleUploadClick);
+    createButton(height - 230, "Скачать JSON", () => {
+      const data = { nodes, links };
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "graph.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
 
     // Добавление тени для кнопок
     const defs = svg.append("defs");

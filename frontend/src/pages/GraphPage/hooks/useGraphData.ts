@@ -26,7 +26,7 @@ export const useGraphData = () => {
       if (!data || !data.nodes || !Array.isArray(data.nodes) || !data.links || !Array.isArray(data.links)) {
         throw new Error('Сервер вернул данные в некорректном формате');
       }
-
+      
       // Если граф пустой (новый пользователь или база данных пуста)
       if (data.nodes.length === 0 && data.links.length === 0) {
         console.log('Граф пуст - создаём начальный узел');

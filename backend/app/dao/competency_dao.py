@@ -30,7 +30,6 @@ class CompetencyDAO:
 
     @classmethod
     async def _execute_stmt(cls, client: SPARQLWrapper, stmt: str) -> dict:
-
         client.setQuery(stmt)
         try:
             result = client.query().convert()
@@ -42,16 +41,24 @@ class CompetencyDAO:
 
     @classmethod
     def _extract_local_name(cls, uri: str) -> str:
-        """
-        Вытаскивает локальное имя из URI: http://example.org/university#compML → compML
-        """
         match = re.search(r'#(.+)$', uri)
         return match.group(1) if match else uri
 
+    # -------------------- helpers (NEW) --------------------
 
-        #11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+    @classmethod
+    def _is_uri(cls, value: str) -> bool:
+        return isinstance(value, str) and value.startswith(("http://", "https://"))
 
+    @classmethod
+    def _ensure_uri(cls, value: str, repo: str) -> str:
+        if cls._is_uri(value):
+            return value
+        if not value:
+            return value
+        return f"http://example.org/{repo}#{value}"
 
+    # ------------------------------------------------------
 
     @classmethod
     async def get_graph_from_db(
@@ -60,34 +67,32 @@ class CompetencyDAO:
         config: Config = Depends(wiring.Provide["config"])
     ) -> dict:
         """
-        Получает весь граф из GraphDB (только пользовательские данные, без системных RDF/RDFS)
+        Получает весь граф из GraphDB (только пользовательские данные) и
+        возвращает как URI→URI ребра, так и URI→literal свойства.
+        Для литералов добавляем признак literal=True и поля value/datatype/lang.
         """
         prefixes = cls._prefix_str(config)
 
-        # Фильтруем системные триплеты RDF/RDFS/OWL
-        # Получаем только данные, которые НЕ относятся к системным namespace
         query = f"""
         {prefixes}
         SELECT ?s ?p ?o
         WHERE {{
             ?s ?p ?o .
-            # Исключаем системные namespace для субъектов
+            # исключаем системные namespace для s/p/o (для o — только если это URI)
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2000/01/rdf-schema#"))
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2002/07/owl#"))
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/XML/1998/namespace"))
             FILTER (!STRSTARTS(STR(?s), "http://www.w3.org/2001/XMLSchema#"))
             FILTER (!STRSTARTS(STR(?s), "http://proton.semanticweb.org/protonsys#"))
-            
-            # Исключаем системные namespace для предикатов
+
             FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
             FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/2000/01/rdf-schema#"))
             FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/2002/07/owl#"))
             FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/XML/1998/namespace"))
             FILTER (!STRSTARTS(STR(?p), "http://www.w3.org/2001/XMLSchema#"))
             FILTER (!STRSTARTS(STR(?p), "http://proton.semanticweb.org/protonsys#"))
-            
-            # Исключаем системные namespace для объектов (только если это URI)
+
             FILTER (
                 !(isURI(?o) && (
                     STRSTARTS(STR(?o), "http://www.w3.org/1999/02/22-rdf-syntax-ns#") ||
@@ -106,23 +111,24 @@ class CompetencyDAO:
         except Exception as e:
             raise RuntimeError(f"Ошибка при получении графа: {str(e)}")
 
-        # Преобразование в нужный формат
-        nodes_dict = {}
-        links = []
-        predicates_set = set()  # Собираем все предикаты
+        nodes_dict: dict[str, dict] = {}
+        links: list[dict] = []
+        predicates_set = set()
 
-        # Первый проход - собираем предикаты
-        for binding in data["results"]["bindings"]:
-            p = binding["p"]["value"]
-            predicates_set.add(p)
+        # 1) собрать множество предикатов (чтобы не рисовать их как узлы)
+        for b in data["results"]["bindings"]:
+            predicates_set.add(b["p"]["value"])
 
-        # Второй проход - собираем узлы и связи
-        for binding in data["results"]["bindings"]:
-            s = binding["s"]["value"]
-            p = binding["p"]["value"]
-            o = binding["o"]["value"]
+        # 2) пройтись и собрать узлы/связи, НЕ отбрасывая литералы
+        for b in data["results"]["bindings"]:
+            s = b["s"]["value"]
+            p = b["p"]["value"]
+            o_val = b["o"]["value"]
+            o_type = b["o"]["type"]                       # 'uri' | 'literal' | 'bnode'
+            o_dt   = b["o"].get("datatype", None)         # для literal может быть
+            o_lang = b["o"].get("xml:lang", None)         # если языковый literal
 
-            # Добавляем субъект как узел (если это не предикат)
+            # субъект как узел (если сам не предикат)
             if s not in nodes_dict and s not in predicates_set:
                 nodes_dict[s] = {
                     "id": s,
@@ -130,30 +136,43 @@ class CompetencyDAO:
                     "type": "class"
                 }
 
-            # Если объект - URI, добавляем как узел (если это не предикат)
-            if binding["o"]["type"] == "uri" and o not in nodes_dict and o not in predicates_set:
-                nodes_dict[o] = {
-                    "id": o,
-                    "label": o.split("#")[-1].split("/")[-1],
-                    "type": "class"
-                }
-
-            # Добавляем связь (только если объект - URI)
-            if binding["o"]["type"] == "uri":
+            if o_type == "uri":
+                # объект-URI как узел (если это не предикат)
+                if o_val not in nodes_dict and o_val not in predicates_set:
+                    nodes_dict[o_val] = {
+                        "id": o_val,
+                        "label": o_val.split("#")[-1].split("/")[-1],
+                        "type": "class"
+                    }
+                # классическое ребро URI→URI
                 links.append({
                     "source": s,
-                    "target": o,
+                    "target": o_val,
                     "predicate": p
                 })
+            elif o_type == "literal":
+                # сохраняем «атрибутное» ребро как URI→literal
+                lit_link = {
+                    "source": s,
+                    "target": o_val,           # целевое значение (строка)
+                    "predicate": p,
+                    "literal": True            # флаг для фронта
+                }
+                if o_dt:
+                    lit_link["datatype"] = o_dt
+                if o_lang:
+                    lit_link["lang"] = o_lang
+                links.append(lit_link)
+            # bnode можно добавить по желанию
 
         return {
             "nodes": list(nodes_dict.values()),
             "links": links
         }
 
+
     @classmethod
     def _is_system_uri(cls, uri: str) -> bool:
-        """Проверяет, является ли URI системным (RDF/RDFS/OWL)"""
         system_namespaces = [
             "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
             "http://www.w3.org/2000/01/rdf-schema#",
@@ -179,37 +198,47 @@ class CompetencyDAO:
             "property": "http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"
         }
 
-        # URL для GraphDB updates
         graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
-        auth = ("admin", "root")  # стандартные учетные данные GraphDB
+        auth = ("admin", "root")
 
         successful = 0
         total = 0
         skipped_system = 0
 
-        # Обрабатываем узлы
+        repo = config.graphdb.repository
+
+        # Индекс литералов: id -> label (для target-узлов типа literal)
+        literal_nodes: dict[str, str] = {
+            n["id"]: n.get("label", n["id"])
+            for n in graph_data.get("nodes", [])
+            if n.get("type") == "literal"
+        }
+
+        # -------- Узлы --------
         for node in graph_data.get("nodes", []):
             node_uri = node["id"]
-            
-            # Пропускаем системные URI
+
             if cls._is_system_uri(node_uri):
                 logger.debug(f"Skipping system URI: {node_uri}")
                 skipped_system += 1
                 continue
-            
-            # Проверяем, что URI валидный (начинается с http:// или https://)
-            if not node_uri.startswith(("http://", "https://")):
-                logger.warning(f"Skipping invalid URI: {node_uri} (must start with http:// or https://)")
-                total += 1
+
+            # literal-узлы не создаём как ресурсы
+            if node.get("type") == "literal":
+                logger.info(f"Skipping literal node: {node_uri}")
                 continue
 
-            node_type = type_map.get(node["type"], node["type"])
-            label = node["label"].replace('"', '\\"')
+            # нормализуем id узла на всякий случай
+            node_uri = cls._ensure_uri(node_uri, repo)
+
+            node_type = type_map.get(node.get("type"), "http://www.w3.org/2000/01/rdf-schema#Class")
+            label = (node.get("label") or node_uri).replace('"', '\\"')
 
             query = f"""
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
             INSERT DATA {{ <{node_uri}> a <{node_type}>; rdfs:label "{label}". }}
             """
+            logger.info(f"[SPARQL NODE INSERT] Sending query:\n{query}")
 
             try:
                 response = requests.post(
@@ -225,37 +254,58 @@ class CompetencyDAO:
 
             total += 1
 
-        # Обрабатываем связи
+        # -------- Связи --------
         for link in graph_data.get("links", []):
-            source = link['source']
-            predicate = link['predicate']
-            target = link['target']
+            raw_source = link['source']
+            raw_predicate = link['predicate']
+            raw_target = link['target']
 
-            # Пропускаем связи с системными URI
-            if cls._is_system_uri(source) or cls._is_system_uri(target) or cls._is_system_uri(predicate):
-                logger.debug(f"Skipping system link: {source} -> {target} ({predicate})")
+            # 1) нормализуем в URI (до проверок)
+            source = cls._ensure_uri(raw_source, repo)
+            predicate = cls._ensure_uri(raw_predicate, repo)
+            target_candidate = raw_target  # может быть literal-узел/строка
+
+            # 2) если target — известный literal-узел, берём его label как текст
+            #    или если target не URI — трактуем как литерал (строка)
+            is_target_uri = cls._is_uri(target_candidate)
+            if target_candidate in literal_nodes:
+                target_literal = literal_nodes[target_candidate]
+                is_target_uri = False
+            elif not is_target_uri:
+                # это литерал, не узел — используем как есть
+                target_literal = str(target_candidate)
+            else:
+                target_literal = None  # это URI
+
+            # 3) системные URI — после нормализации
+            if cls._is_system_uri(source) or cls._is_system_uri(predicate) or (is_target_uri and cls._is_system_uri(target_candidate)):
+                logger.debug(f"Skipping system link: {source} -> {target_candidate} ({predicate})")
                 skipped_system += 1
                 continue
 
-            # Проверяем, что все URI валидные (начинаются с http:// или https://)
-            if not source.startswith(("http://", "https://")):
+            # 4) проверка валидности source/predicate
+            if not cls._is_uri(source):
                 logger.warning(f"Skipping invalid source URI: {source} (must start with http:// or https://)")
                 total += 1
                 continue
-
-            if not predicate.startswith(("http://", "https://")):
+            if not cls._is_uri(predicate):
                 logger.warning(f"Skipping invalid predicate URI: {predicate} (must start with http:// or https://)")
                 total += 1
                 continue
 
-            if not target.startswith(("http://", "https://")):
-                logger.warning(f"Skipping invalid target URI: {target} (must start with http:// or https://)")
-                total += 1
-                continue
+            # 5) формируем SPARQL для URI- или literal-объекта
+            if is_target_uri:
+                target = cls._ensure_uri(target_candidate, repo)
+                if not cls._is_uri(target):
+                    logger.warning(f"Skipping invalid target URI: {target} (must start with http:// or https://)")
+                    total += 1
+                    continue
+                query = f"""INSERT DATA {{ <{source}> <{predicate}> <{target}>. }}"""
+            else:
+                lit = target_literal.replace('"', '\\"') if target_literal is not None else ""
+                query = f"""INSERT DATA {{ <{source}> <{predicate}> "{lit}". }}"""
 
-            query = f"""
-            INSERT DATA {{ <{source}> <{predicate}> <{target}>. }}
-            """
+            logger.info(f"[SPARQL LINK INSERT] Sending query:\n{query}")
 
             try:
                 response = requests.post(
@@ -267,7 +317,7 @@ class CompetencyDAO:
                 response.raise_for_status()
                 successful += 1
             except Exception as e:
-                logger.warning(f"Failed to save link {source} -> {target}: {e}")
+                logger.warning(f"Failed to save link {source} -> {target_candidate}: {e}")
 
             total += 1
 
@@ -284,13 +334,22 @@ class CompetencyDAO:
     ) -> bool:
         """
         Добавить один триплет в GraphDB
+        Поддерживает как URI-объект, так и литерал.
         """
         graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
         auth = ("admin", "root")
 
-        query = f"""
-        INSERT DATA {{ <{subject}> <{predicate}> <{object_value}>. }}
-        """
+        repo = config.graphdb.repository
+        s = cls._ensure_uri(subject, repo)
+        p = cls._ensure_uri(predicate, repo)
+
+        if cls._is_uri(object_value):
+            o_part = f"<{cls._ensure_uri(object_value, repo)}>"
+        else:
+            lit = object_value.replace('"', '\\"')
+            o_part = f"\"{lit}\""
+
+        query = f"""INSERT DATA {{ <{s}> <{p}> {o_part}. }}"""
 
         try:
             response = requests.post(
@@ -300,7 +359,7 @@ class CompetencyDAO:
                 headers={"Accept": "application/json"}
             )
             response.raise_for_status()
-            logger.info(f"Added triple: <{subject}> <{predicate}> <{object_value}>")
+            logger.info(f"Added triple: <{s}> <{p}> {o_part}")
             return True
         except Exception as e:
             logger.error(f"Failed to add triple: {e}")
@@ -314,15 +373,20 @@ class CompetencyDAO:
         object_value: str,
         config: Config = Depends(wiring.Provide["config"])
     ) -> bool:
-        """
-        Удалить один триплет из GraphDB
-        """
         graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
         auth = ("admin", "root")
 
-        query = f"""
-        DELETE DATA {{ <{subject}> <{predicate}> <{object_value}>. }}
-        """
+        repo = config.graphdb.repository
+        s = cls._ensure_uri(subject, repo)
+        p = cls._ensure_uri(predicate, repo)
+
+        if cls._is_uri(object_value):
+            o_part = f"<{cls._ensure_uri(object_value, repo)}>"
+        else:
+            lit = object_value.replace('"', '\\"')
+            o_part = f"\"{lit}\""
+
+        query = f"""DELETE DATA {{ <{s}> <{p}> {o_part}. }}"""
 
         try:
             response = requests.post(
@@ -332,7 +396,7 @@ class CompetencyDAO:
                 headers={"Accept": "application/json"}
             )
             response.raise_for_status()
-            logger.info(f"Deleted triple: <{subject}> <{predicate}> <{object_value}>")
+            logger.info(f"Deleted triple: <{s}> <{p}> {o_part}")
             return True
         except Exception as e:
             logger.error(f"Failed to delete triple: {e}")
@@ -344,25 +408,13 @@ class CompetencyDAO:
         node_uri: str,
         config: Config = Depends(wiring.Provide["config"])
     ) -> bool:
-        """
-        Удалить узел и все связанные с ним триплеты из GraphDB
-        Удаляет все триплеты, где узел является субъектом или объектом
-        """
         graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
         auth = ("admin", "root")
 
-        # Удаляем все триплеты, где узел является субъектом
-        query1 = f"""
-        DELETE WHERE {{ <{node_uri}> ?p ?o . }}
-        """
-
-        # Удаляем все триплеты, где узел является объектом
-        query2 = f"""
-        DELETE WHERE {{ ?s ?p <{node_uri}> . }}
-        """
+        query1 = f"""DELETE WHERE {{ <{node_uri}> ?p ?o . }}"""
+        query2 = f"""DELETE WHERE {{ ?s ?p <{node_uri}> . }}"""
 
         try:
-            # Выполняем первый запрос
             response = requests.post(
                 graphdb_url,
                 data={"update": query1},
@@ -371,7 +423,6 @@ class CompetencyDAO:
             )
             response.raise_for_status()
 
-            # Выполняем второй запрос
             response = requests.post(
                 graphdb_url,
                 data={"update": query2},
@@ -391,16 +442,10 @@ class CompetencyDAO:
         cls,
         config: Config = Depends(wiring.Provide["config"])
     ) -> bool:
-        """
-        Очистить весь репозиторий GraphDB
-        ВНИМАНИЕ: Удаляет ВСЕ данные!
-        """
         graphdb_url = f"{config.graphdb.url}/repositories/{config.graphdb.repository}/statements"
         auth = ("admin", "root")
 
-        query = """
-        DELETE WHERE { ?s ?p ?o . }
-        """
+        query = """DELETE WHERE { ?s ?p ?o . }"""
 
         try:
             response = requests.post(
@@ -415,8 +460,6 @@ class CompetencyDAO:
         except Exception as e:
             logger.error(f"Failed to clear repository: {e}")
             raise RuntimeError(f"Failed to clear repository: {e}")
-    #11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
-
 
     @classmethod
     @wiring.inject
@@ -429,52 +472,35 @@ class CompetencyDAO:
         client: SPARQLWrapper = Depends(wiring.Provide["graphdb_client"]),
         config: Config = Depends(wiring.Provide["config"])
     ) -> dict:
-        """
-        Возвращает часть графа в формате:
-        {
-            "nodes": [
-                {"id": "...", "label": "...", "type": "..."}
-            ],
-            "links": [
-                {"source": "...", "target": "...", "predicate": "..."}
-            ]
-        }
-        """
         prefixes = cls._prefix_str(config)
         repo = config.graphdb.repository
 
-        # Обработка URI
         if start_from.startswith(("http://", "https://")):
             start_uri = f"<{start_from}>"
         else:
             start_uri = f"<http://example.org/{repo}#{start_from}>"
 
-        # Упрощённый запрос для получения части графа
         query = f"""
         {prefixes}
 
         SELECT DISTINCT ?id ?label ?type
         WHERE {{
             {{
-                # Получаем начальный узел
                 BIND({start_uri} AS ?id)
                 OPTIONAL {{ ?id rdfs:label ?label . }}
             }}
             UNION
             {{
-                # Получаем узлы напрямую связанные (глубина 1)
                 {start_uri} ?p1 ?id .
                 OPTIONAL {{ ?id rdfs:label ?label . }}
             }}
             UNION
             {{
-                # Получаем узлы на глубине 2
                 {start_uri} ?p1 ?mid1 .
                 ?mid1 ?p2 ?id .
                 OPTIONAL {{ ?id rdfs:label ?label . }}
             }}
 
-            # Определяем тип узла
             BIND(
                 IF(EXISTS {{ ?id a rdfs:Class }}, "class",
                 IF(EXISTS {{ ?id a rdf:Property }}, "property",
@@ -486,12 +512,10 @@ class CompetencyDAO:
 
         data = await cls._execute_stmt(client, query)
 
-        # Собираем результаты - только узлы
         nodes = []
         seen_nodes = set()
 
         for binding in data["results"]["bindings"]:
-            # Обработка узлов
             if "id" in binding:
                 node_id = binding["id"]["value"]
                 if node_id not in seen_nodes:
@@ -502,7 +526,6 @@ class CompetencyDAO:
                         "type": binding.get("type", {}).get("value", "class")
                     })
 
-        # Получаем связи между найденными узлами
         links = await cls._get_links_between_nodes(client, config, list(seen_nodes))
 
         return {
@@ -517,13 +540,10 @@ class CompetencyDAO:
         config: Config,
         node_uris: list[str]
     ) -> list[dict]:
-        """Получить связи между указанными узлами"""
         if not node_uris:
             return []
 
         prefixes = cls._prefix_str(config)
-
-        # Формируем VALUES для узлов
         values_clause = " ".join([f"<{uri}>" for uri in node_uris])
 
         query = f"""
@@ -557,36 +577,24 @@ class CompetencyDAO:
     @classmethod
     async def get_graph_part_from_json(
         cls,
-        graph_data: dict,  # Принимаем готовый JSON
-        start_from: str,    # Опционально: начальный узел для фильтрации
+        graph_data: dict,
+        start_from: str,
         depth: int = 2
     ) -> dict:
-        """
-        Фильтрует готовый граф в JSON-формате.
-        Пример graph_data:
-        {
-          "nodes": [...],
-          "links": [...]
-        }
-        """
-        # 1. Фильтрация узлов
         nodes = [
             node for node in graph_data["nodes"]
-            if node["id"] == start_from  # Простая фильтрация (можно сложнее)
+            if node["id"] == start_from
         ]
 
-        # 2. Фильтрация связей
         links = [
             link for link in graph_data["links"]
             if link["source"] == start_from or link["target"] == start_from
         ]
 
         return {
-            "nodes": nodes[:depth*10],  # Упрощённая "глубина"
+            "nodes": nodes[:depth*10],
             "links": links[:depth*10]
         }
-
-
 
     @classmethod
     @wiring.inject
@@ -598,10 +606,6 @@ class CompetencyDAO:
         client: SPARQLWrapper = Depends(wiring.Provide["graphdb_client"]),
         config: Config = Depends(wiring.Provide["config"])
     ) -> List[OntologyNode]:
-        """
-        Возвращает предков компетенции с идентификатором `competency_id`,
-        с учетом лимита и смещения (offset).
-        """
         prefixes = cls._prefix_str(config)
 
         if competency_id.startswith("http://") or competency_id.startswith("https://"):
@@ -668,10 +672,6 @@ class CompetencyDAO:
         client: SPARQLWrapper = Depends(wiring.Provide["graphdb_client"]),
         config: Config = Depends(wiring.Provide["config"])
     ) -> List[OntologyNode]:
-        """
-        Возвращает потомков компетенции с идентификатором `competency_id`,
-        с учетом лимита и смещения (offset).
-        """
         prefixes = cls._prefix_str(config)
 
         if competency_id.startswith("http://") or competency_id.startswith("https://"):
@@ -737,10 +737,6 @@ class CompetencyDAO:
         client: SPARQLWrapper = Depends(wiring.Provide["graphdb_client"]),
         config: Config = Depends(wiring.Provide["config"])
     ) -> List[OntologyNode]:
-        """
-        Находит путь от start_id до end_id по связям :hasSubCompetence.
-        Возвращает список узлов на пути или пустой список, если путь не найден.
-        """
         prefixes = cls._prefix_str(config)
 
         if start_id.startswith("http://") or start_id.startswith("https://"):
